@@ -70,7 +70,8 @@ impl BuildScriptOutput {
                     };
                     out.directives.push(directive);
                 } else if !rest.is_empty() {
-                    out.directives.push(Directive::Metadata(rest.to_owned(), String::new()));
+                    out.directives
+                        .push(Directive::Metadata(rest.to_owned(), String::new()));
                 }
             } else if !line.trim().is_empty() {
                 out.stdout.push(line.to_owned());
@@ -96,7 +97,9 @@ impl BuildScriptOutput {
         let mut flags = Vec::new();
         for d in &self.directives {
             match d {
-                Directive::RustcFlags(raw) => flags.extend(raw.split_whitespace().map(str::to_owned)),
+                Directive::RustcFlags(raw) => {
+                    flags.extend(raw.split_whitespace().map(str::to_owned))
+                }
                 Directive::RustcLinkLib(spec) => {
                     flags.push("-l".to_owned());
                     flags.push(spec.clone());
@@ -111,7 +114,7 @@ impl BuildScriptOutput {
         flags
     }
 
-    /// The environment variables the units' compilation runs under.
+    /// Environment variables the units' compilation runs under.
     pub fn env(&self) -> BTreeMap<String, String> {
         let mut env = BTreeMap::new();
         for d in &self.directives {
@@ -120,6 +123,19 @@ impl BuildScriptOutput {
             }
         }
         env
+    }
+
+    /// `cargo:KEY=VALUE` metadata pairs — dependents read these as
+    /// `DEP_<LINKS>_<KEY>` environment variables, exactly as cargo
+    /// propagates them.
+    pub fn metadata(&self) -> Vec<(String, String)> {
+        self.directives
+            .iter()
+            .filter_map(|d| match d {
+                Directive::Metadata(key, value) => Some((key.clone(), value.clone())),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Paths whose change re-runs the script (`rerun-if-changed`; empty
@@ -166,10 +182,16 @@ pub fn script_environment(
     out_dir: &Path,
 ) -> BTreeMap<String, String> {
     let mut env = BTreeMap::new();
-    env.insert("CARGO_MANIFEST_DIR".into(), package_root.to_string_lossy().into_owned());
+    env.insert(
+        "CARGO_MANIFEST_DIR".into(),
+        package_root.to_string_lossy().into_owned(),
+    );
     env.insert("CARGO_PKG_NAME".into(), package_name.to_owned());
     env.insert("CARGO_PKG_VERSION".into(), package_version.to_owned());
-    env.insert("CARGO_PKG_VERSION_MAJOR".into(), package_version.split('.').next().unwrap_or("0").to_owned());
+    env.insert(
+        "CARGO_PKG_VERSION_MAJOR".into(),
+        package_version.split('.').next().unwrap_or("0").to_owned(),
+    );
     env.insert("OUT_DIR".into(), out_dir.to_string_lossy().into_owned());
     env.insert("TARGET".into(), target_triple.to_owned());
     env.insert("HOST".into(), host_triple.to_owned());
@@ -204,7 +226,9 @@ pub fn run_script(
             message: format!("exit {}:\n{tail}", output.status),
         });
     }
-    Ok(BuildScriptOutput::parse(&String::from_utf8_lossy(&output.stdout)))
+    Ok(BuildScriptOutput::parse(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
 }
 
 #[cfg(test)]
@@ -229,7 +253,11 @@ cargo:metadata=anything
         assert_eq!(out.rustc_cfg_flags(), vec!["--cfg", "feature=\"native\""]);
         assert!(out.rustc_flag_args().contains(&"-l".to_owned()));
         assert!(out.rustc_flag_args().iter().any(|f| f == "static=z"));
-        assert!(out.rustc_flag_args().contains(&"native=/opt/lib".to_owned()) || out.rustc_flag_args().contains(&"-L".to_owned()));
+        assert!(
+            out.rustc_flag_args()
+                .contains(&"native=/opt/lib".to_owned())
+                || out.rustc_flag_args().contains(&"-L".to_owned())
+        );
         assert_eq!(out.env().get("VERSION").map(String::as_str), Some("1.2.3"));
         assert_eq!(out.rerun_if_changed(), vec!["build/tables.txt"]);
         assert_eq!(out.rerun_if_env_changed(), vec!["ZLIB_VERSION"]);

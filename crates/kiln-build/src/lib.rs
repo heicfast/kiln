@@ -17,5 +17,5 @@ pub mod sandbox;
 pub mod scheduler;
 pub mod toolchain;
 
-pub use plan::{plan_units, Plan, PlanRequest, PlannedUnit};
+pub use plan::{Plan, PlanRequest, PlannedUnit, plan_units};
 pub use toolchain::{LinkerChoice, Toolchain};

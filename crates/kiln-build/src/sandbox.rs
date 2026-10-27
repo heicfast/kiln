@@ -82,7 +82,9 @@ impl SandboxPolicy {
             cmd.env(k, v);
         }
         apply_restrictions(&mut cmd, self);
-        let status = cmd.status().map_err(|e| kiln_core::Error::io("run", exe, e))?;
+        let status = cmd
+            .status()
+            .map_err(|e| kiln_core::Error::io("run", exe, e))?;
         Ok(status)
     }
 }
@@ -103,7 +105,10 @@ struct ChildRestrictions {
 #[cfg(target_os = "linux")]
 fn build_restrictions(policy: &SandboxPolicy) -> ChildRestrictions {
     if matches!(policy, SandboxPolicy::Off) {
-        return ChildRestrictions { landlock: None, seccomp: None };
+        return ChildRestrictions {
+            landlock: None,
+            seccomp: None,
+        };
     }
     ChildRestrictions {
         landlock: build_landlock_ruleset(policy),
@@ -158,7 +163,8 @@ fn run_plain(exe: &Path, cwd: &Path, env: &BTreeMap<String, String>) -> Result<O
     for (k, v) in env {
         cmd.env(k, v);
     }
-    cmd.output().map_err(|e| kiln_core::Error::io("run", exe, e))
+    cmd.output()
+        .map_err(|e| kiln_core::Error::io("run", exe, e))
 }
 
 fn run_sandboxed(
@@ -173,7 +179,8 @@ fn run_sandboxed(
         cmd.env(k, v);
     }
     apply_restrictions(&mut cmd, policy);
-    cmd.output().map_err(|e| kiln_core::Error::io("run", exe, e))
+    cmd.output()
+        .map_err(|e| kiln_core::Error::io("run", exe, e))
 }
 
 // ---------------------------------------------------------------------------
@@ -187,11 +194,14 @@ fn run_sandboxed(
 #[cfg(target_os = "linux")]
 fn build_landlock_ruleset(policy: &SandboxPolicy) -> Option<landlock::RulesetCreated> {
     use landlock::{
-        path_beneath_rules, Access, AccessFs, ABI, Ruleset, RulesetAttr, RulesetCreatedAttr,
+        ABI, Access, AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr, path_beneath_rules,
     };
 
     let writable: Vec<std::path::PathBuf> = match policy {
-        SandboxPolicy::BuildScript { out_dir, target_dir } => {
+        SandboxPolicy::BuildScript {
+            out_dir,
+            target_dir,
+        } => {
             vec![out_dir.clone(), target_dir.clone()]
         }
         SandboxPolicy::Test { work_dir } => vec![work_dir.clone(), std::env::temp_dir()],
@@ -201,15 +211,20 @@ fn build_landlock_ruleset(policy: &SandboxPolicy) -> Option<landlock::RulesetCre
     // scaffolding uses; BestEffort (the default) degrades on older kernels.
     let abi = ABI::V3;
 
-    let writable_strs: Vec<String> =
-        writable.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let writable_strs: Vec<String> = writable
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
 
     match Ruleset::default()
         .handle_access(AccessFs::from_all(abi))
         .and_then(|r| r.create())
         .and_then(|r| r.add_rules(path_beneath_rules(["/"], AccessFs::from_read(abi))))
         .and_then(|r| {
-            r.add_rules(path_beneath_rules(writable_strs.iter().map(String::as_str), AccessFs::from_all(abi)))
+            r.add_rules(path_beneath_rules(
+                writable_strs.iter().map(String::as_str),
+                AccessFs::from_all(abi),
+            ))
         })
         .map(|rs| rs.no_new_privs(true))
     {
@@ -322,9 +337,10 @@ pub(crate) fn warn_once(key: &str, message: &str) {
     static SEEN: OnceLock<std::sync::Mutex<std::collections::BTreeSet<String>>> = OnceLock::new();
     let seen = SEEN.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeSet::new()));
     if let Ok(mut guard) = seen.lock()
-        && guard.insert(key.to_owned()) {
-            eprintln!("{message}");
-        }
+        && guard.insert(key.to_owned())
+    {
+        eprintln!("{message}");
+    }
 }
 
 #[cfg(test)]
@@ -334,12 +350,19 @@ mod tests {
 
     #[test]
     fn policies_know_when_they_restrict() {
-        assert!(SandboxPolicy::BuildScript {
-            out_dir: PathBuf::from("/tmp/o"),
-            target_dir: PathBuf::from("/tmp/t"),
-        }
-        .restricted());
-        assert!(SandboxPolicy::Test { work_dir: PathBuf::from("/tmp/w") }.restricted());
+        assert!(
+            SandboxPolicy::BuildScript {
+                out_dir: PathBuf::from("/tmp/o"),
+                target_dir: PathBuf::from("/tmp/t"),
+            }
+            .restricted()
+        );
+        assert!(
+            SandboxPolicy::Test {
+                work_dir: PathBuf::from("/tmp/w")
+            }
+            .restricted()
+        );
         assert!(!SandboxPolicy::Off.restricted());
     }
 
@@ -365,7 +388,10 @@ mod tests {
         env.insert("OUT_DIR".to_owned(), out_dir.to_string_lossy().into_owned());
         let output = policy.run_build_script(&script, dir.path(), &env).unwrap();
         assert!(output.status.success(), "script must succeed: {output:?}");
-        assert!(out_dir.join("product.txt").is_file(), "writes inside OUT_DIR must work");
+        assert!(
+            out_dir.join("product.txt").is_file(),
+            "writes inside OUT_DIR must work"
+        );
     }
 
     /// A behavioral probe: does landlock actually enforce this policy here?
@@ -406,7 +432,11 @@ mod tests {
         }
         let script = dir.path().join("script.sh");
         let outside = dir.path().join("outside.txt");
-        std::fs::write(&script, format!("#!/bin/sh\necho hi > {}\n", outside.display())).unwrap();
+        std::fs::write(
+            &script,
+            format!("#!/bin/sh\necho hi > {}\n", outside.display()),
+        )
+        .unwrap();
         make_executable(&script);
         let env = BTreeMap::new();
         let output = policy.run_build_script(&script, dir.path(), &env).unwrap();
@@ -434,14 +464,22 @@ mod tests {
         }
         let mut cmd = Command::new(&probe);
         cmd.current_dir("/tmp");
-        let policy = SandboxPolicy::Test { work_dir: PathBuf::from("/tmp") };
+        let policy = SandboxPolicy::Test {
+            work_dir: PathBuf::from("/tmp"),
+        };
         apply_restrictions(&mut cmd, &policy);
         let out = cmd.output().unwrap();
         let code = out.status.code().unwrap_or(-1);
         if seccomp_available() {
-            assert_eq!(code, 42, "with seccomp available the filter must deny sockets: {out:?}");
+            assert_eq!(
+                code, 42,
+                "with seccomp available the filter must deny sockets: {out:?}"
+            );
         } else {
-            assert_eq!(code, 0, "without seccomp the child must run unfiltered: {out:?}");
+            assert_eq!(
+                code, 0,
+                "without seccomp the child must run unfiltered: {out:?}"
+            );
         }
     }
 

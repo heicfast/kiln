@@ -9,8 +9,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use kiln_core::unit::{CompileMode, Unit, UnitKey};
 use kiln_core::Result;
+use kiln_core::unit::{CompileMode, Unit, UnitKey};
 use kiln_resolve::ResolvedWorkspace;
 
 use crate::toolchain::Toolchain;
@@ -39,7 +39,13 @@ impl<'a> Fingerprinter<'a> {
         profile_fingerprint: u64,
         rustflags: &'a [String],
     ) -> Self {
-        Self { resolved, toolchain, target, profile_fingerprint, rustflags }
+        Self {
+            resolved,
+            toolchain,
+            target,
+            profile_fingerprint,
+            rustflags,
+        }
     }
 
     /// The input hash of one unit: everything about the unit except its
@@ -146,7 +152,11 @@ pub fn package_files(root: &Path) -> Result<Vec<(String, Vec<u8>)>> {
     Ok(out)
 }
 
-fn collect_files(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> kiln_core::Result<()> {
+fn collect_files(
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<(String, PathBuf)>,
+) -> kiln_core::Result<()> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -177,7 +187,9 @@ fn collect_files(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> k
 pub fn emit_for(mode: CompileMode, kind: kiln_core::unit::TargetKind) -> &'static str {
     match (mode, kind) {
         (CompileMode::Check, _) => "dep-info,metadata",
-        (CompileMode::Build | CompileMode::Test, kiln_core::unit::TargetKind::BuildScript) => "dep-info,link",
+        (CompileMode::Build | CompileMode::Test, kiln_core::unit::TargetKind::BuildScript) => {
+            "dep-info,link"
+        }
         (CompileMode::Build | CompileMode::Test, _) => "dep-info,metadata,link",
     }
 }
@@ -204,7 +216,11 @@ mod tests {
 
     fn fixture_workspace(dir: &Path, name: &str, file_text: &str) -> ResolvedWorkspace {
         std::fs::create_dir_all(dir.join("src")).unwrap();
-        std::fs::write(dir.join("Cargo.toml"), format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n")).unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n"),
+        )
+        .unwrap();
         std::fs::write(dir.join("src/lib.rs"), file_text).unwrap();
         let manifest = Manifest::parse(dir).unwrap();
         let mut packages = BTreeMap::new();
@@ -217,7 +233,10 @@ mod tests {
                 features: BTreeSet::new(),
             },
         );
-        ResolvedWorkspace { packages, reused_lock: true }
+        ResolvedWorkspace {
+            packages,
+            reused_lock: true,
+        }
     }
 
     use kiln_manifest::Manifest;
@@ -255,13 +274,17 @@ mod tests {
         assert_ne!(edited.0, added.0);
 
         // Build script output changes it.
-        let with_script = fp3.unit_input_hash(&unit, Some(b"cargo:rustc-cfg=foo"), &BTreeMap::new()).unwrap();
+        let with_script = fp3
+            .unit_input_hash(&unit, Some(b"cargo:rustc-cfg=foo"), &BTreeMap::new())
+            .unwrap();
         assert_ne!(added.0, with_script.0);
 
         // Features change it.
         let mut featured = unit_for("app");
         featured.features.insert("serde".into());
-        let feat_hash = fp3.unit_input_hash(&featured, None, &BTreeMap::new()).unwrap();
+        let feat_hash = fp3
+            .unit_input_hash(&featured, None, &BTreeMap::new())
+            .unwrap();
         assert_ne!(added.0, feat_hash.0);
 
         // Profile changes it.

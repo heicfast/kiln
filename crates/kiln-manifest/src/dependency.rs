@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 use semver::VersionReq;
 
-
 /// Which table a dependency came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum DepKind {
@@ -90,32 +89,36 @@ impl Dependency {
                         "path" => dep.path = Some(string_of(dep_name, "path", value)?),
                         "package" => dep.package = Some(string_of(dep_name, "package", value)?),
                         "optional" => dep.optional = bool_of(dep_name, "optional", value)?,
-                        "default-features" => dep.default_features = bool_of(dep_name, "default-features", value)?,
+                        "default-features" => {
+                            dep.default_features = bool_of(dep_name, "default-features", value)?
+                        }
                         "features" => {
                             dep.features = string_list_of(dep_name, "features", value)?;
                         }
                         "registry" => dep.registry = Some(string_of(dep_name, "registry", value)?),
                         // `default_features` is the old spelling; cargo still
                         // accepts both, so kiln does too.
-                        "default_features" => dep.default_features = bool_of(dep_name, "default_features", value)?,
+                        "default_features" => {
+                            dep.default_features = bool_of(dep_name, "default_features", value)?
+                        }
                         // git and branch/tag/rev dependencies: refused by
                         // name, never silently treated as a missing dep.
                         "git" => {
                             return Err(kiln_core::Error::unsupported(format!(
                                 "dependency `{dep_name}` is a git dependency; kiln does not build git dependencies yet (path and registry dependencies are supported)"
-                            )))
+                            )));
                         }
                         "branch" | "tag" | "rev" | "sparse-registry" => {
                             return Err(kiln_core::Error::unsupported(format!(
                                 "dependency `{dep_name}` uses `{key}`, which belongs to a git dependency; kiln does not build git dependencies yet"
-                            )))
+                            )));
                         }
                         // Public-facing metadata that never changes a build.
                         "public" | "public-registry" => {}
                         other => {
                             return Err(kiln_core::Error::unsupported(format!(
                                 "dependency `{dep_name}`: unknown key `{other}`"
-                            )))
+                            )));
                         }
                     }
                 }
@@ -130,7 +133,7 @@ impl Dependency {
                 return Err(kiln_core::Error::parse(
                     format!("dependency {dep_name}"),
                     format!("expected a version string or a table, got {other:?}"),
-                ))
+                ));
             }
         }
         // Path dependencies are kept exactly as the manifest spells them:
@@ -150,7 +153,8 @@ impl Dependency {
 }
 
 fn parse_req(name: &str, req: &str) -> kiln_core::Result<VersionReq> {
-    VersionReq::parse(req).map_err(|e| kiln_core::Error::parse(format!("dependency {name}: `{req}`"), e))
+    VersionReq::parse(req)
+        .map_err(|e| kiln_core::Error::parse(format!("dependency {name}: `{req}`"), e))
 }
 
 fn string_of(dep: &str, key: &str, v: &toml::Value) -> kiln_core::Result<String> {
@@ -167,13 +171,23 @@ fn bool_of(dep: &str, key: &str, v: &toml::Value) -> kiln_core::Result<bool> {
 
 fn string_list_of(dep: &str, key: &str, v: &toml::Value) -> kiln_core::Result<Vec<String>> {
     let array = v.as_array().ok_or_else(|| {
-        kiln_core::Error::parse(format!("dependency {dep}.{key}"), "expected an array of strings")
+        kiln_core::Error::parse(
+            format!("dependency {dep}.{key}"),
+            "expected an array of strings",
+        )
     })?;
     let mut out = Vec::with_capacity(array.len());
     for item in array {
-        out.push(item.as_str().ok_or_else(|| {
-            kiln_core::Error::parse(format!("dependency {dep}.{key}"), "every feature must be a string")
-        })?.to_owned());
+        out.push(
+            item.as_str()
+                .ok_or_else(|| {
+                    kiln_core::Error::parse(
+                        format!("dependency {dep}.{key}"),
+                        "every feature must be a string",
+                    )
+                })?
+                .to_owned(),
+        );
     }
     Ok(out)
 }
@@ -202,7 +216,12 @@ mod tests {
     fn parse_dep(src: &str) -> kiln_core::Result<Dependency> {
         let value: toml::Value = toml::from_str(src).unwrap();
         let (name, value) = value.as_table().unwrap().iter().next().unwrap();
-        Dependency::parse(name, value, DepKind::Normal, std::path::Path::new("/ws/crate"))
+        Dependency::parse(
+            name,
+            value,
+            DepKind::Normal,
+            std::path::Path::new("/ws/crate"),
+        )
     }
 
     #[test]

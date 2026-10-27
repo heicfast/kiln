@@ -66,15 +66,18 @@ impl Toolchain {
         } else {
             LinkerChoice::Default
         };
-        Ok(Self { rustc, rustc_version, host, linker })
+        Ok(Self {
+            rustc,
+            rustc_version,
+            host,
+            linker,
+        })
     }
 
     /// The `-Clink-arg` prefixes that select the chosen linker, if any.
     pub fn linker_args(&self) -> Vec<String> {
         match &self.linker {
-            LinkerChoice::Fastest(name) => vec![
-                format!("-Clink-arg=-fuse-ld={name}"),
-            ],
+            LinkerChoice::Fastest(name) => vec![format!("-Clink-arg=-fuse-ld={name}")],
             LinkerChoice::Default => Vec::new(),
         }
     }
@@ -82,9 +85,10 @@ impl Toolchain {
 
 fn find_rustc() -> Result<PathBuf> {
     if let Ok(rustc) = std::env::var("RUSTC")
-        && !rustc.is_empty() {
-            return Ok(PathBuf::from(rustc));
-        }
+        && !rustc.is_empty()
+    {
+        return Ok(PathBuf::from(rustc));
+    }
     if let Some(home) = std::env::var_os("HOME") {
         let via_rustup = PathBuf::from(home).join(".cargo/bin/rustc");
         if via_rustup.is_file() {
@@ -92,7 +96,10 @@ fn find_rustc() -> Result<PathBuf> {
         }
     }
     let found = which("rustc").ok_or_else(|| {
-        Error::missing("rustc", "no Rust compiler found: install one with rustup (https://rustup.rs) or set RUSTC")
+        Error::missing(
+            "rustc",
+            "no Rust compiler found: install one with rustup (https://rustup.rs) or set RUSTC",
+        )
     })?;
     Ok(found)
 }
@@ -137,9 +144,19 @@ mod tests {
 
     #[test]
     fn linker_args_follow_the_choice() {
-        let tc = Toolchain { rustc: PathBuf::from("/bin/rustc"), rustc_version: "1.0".into(), host: "x".into(), linker: LinkerChoice::Fastest("mold".into()) };
+        let tc = Toolchain {
+            rustc: PathBuf::from("/bin/rustc"),
+            rustc_version: "1.0".into(),
+            host: "x".into(),
+            linker: LinkerChoice::Fastest("mold".into()),
+        };
         assert_eq!(tc.linker_args(), vec!["-Clink-arg=-fuse-ld=mold"]);
-        let tc = Toolchain { rustc: PathBuf::from("/bin/rustc"), rustc_version: "1.0".into(), host: "x".into(), linker: LinkerChoice::Default };
+        let tc = Toolchain {
+            rustc: PathBuf::from("/bin/rustc"),
+            rustc_version: "1.0".into(),
+            host: "x".into(),
+            linker: LinkerChoice::Default,
+        };
         assert!(tc.linker_args().is_empty());
     }
 }

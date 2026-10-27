@@ -67,7 +67,10 @@ impl IndexEntry {
     pub fn all_features(&self) -> std::collections::BTreeMap<String, Vec<String>> {
         let mut merged = self.features.clone();
         for (k, v) in &self.features2 {
-            merged.entry(k.clone()).or_default().extend(v.iter().cloned());
+            merged
+                .entry(k.clone())
+                .or_default()
+                .extend(v.iter().cloned());
         }
         merged
     }
@@ -107,9 +110,10 @@ impl IndexCache {
     pub async fn entries(&self, name: &str) -> Result<Vec<IndexEntry>> {
         let cache_file = self.cache_dir.join(format!("{name}.json"));
         if let Ok(text) = std::fs::read_to_string(&cache_file)
-            && let Some(entries) = parse_entries(&text) {
-                return Ok(entries);
-            }
+            && let Some(entries) = parse_entries(&text)
+        {
+            return Ok(entries);
+        }
         if self.offline || self.frozen {
             return Err(Error::Resolve(format!(
                 "crate `{name}` is not in the local registry cache and the network is off (--offline/--frozen)"
@@ -122,21 +126,26 @@ impl IndexCache {
             .get(&url)
             .send()
             .await
-            .map_err(|e| Error::Network { context: format!("fetching the index of `{name}`"), source: Box::new(e) })?;
+            .map_err(|e| Error::Network {
+                context: format!("fetching the index of `{name}`"),
+                source: Box::new(e),
+            })?;
         if !response.status().is_success() {
             return Err(Error::Network {
                 context: format!("fetching the index of `{name}`"),
-                source: Box::new(std::io::Error::other(
-                    format!("registry answered {}", response.status()),
-                )),
+                source: Box::new(std::io::Error::other(format!(
+                    "registry answered {}",
+                    response.status()
+                ))),
             });
         }
-        let text = response
-            .text()
-            .await
-            .map_err(|e| Error::Network { context: format!("reading the index of `{name}`"), source: Box::new(e) })?;
-        let entries = parse_entries(&text)
-            .ok_or_else(|| Error::parse(format!("the index of `{name}`"), "a line is not valid JSON"))?;
+        let text = response.text().await.map_err(|e| Error::Network {
+            context: format!("reading the index of `{name}`"),
+            source: Box::new(e),
+        })?;
+        let entries = parse_entries(&text).ok_or_else(|| {
+            Error::parse(format!("the index of `{name}`"), "a line is not valid JSON")
+        })?;
         std::fs::create_dir_all(&self.cache_dir)
             .map_err(|e| Error::io("create", &self.cache_dir, e))?;
         let tmp = cache_file.with_extension("tmp");
@@ -209,7 +218,10 @@ mod tests {
         let err = std::thread::scope(|s| {
             s.spawn(move || {
                 let cache = IndexCache::new(true, false).unwrap();
-                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
                 rt.block_on(cache.entries(&name)).unwrap_err()
             })
             .join()
@@ -217,5 +229,4 @@ mod tests {
         });
         assert!(err.to_string().contains("network is off"), "{err}");
     }
-
 }

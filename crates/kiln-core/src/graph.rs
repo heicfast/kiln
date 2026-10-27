@@ -41,7 +41,10 @@ impl UnitGraph {
     /// is a cycle and therefore a bug.
     pub fn depend_on(&mut self, dependent: usize, dependency: usize) -> Result<()> {
         if dependent == dependency {
-            return Err(Error::bug(format!("unit `{}` depends on itself", self.units[dependent].crate_name())));
+            return Err(Error::bug(format!(
+                "unit `{}` depends on itself",
+                self.units[dependent].crate_name()
+            )));
         }
         if !self.edges[dependent].contains(&dependency) {
             self.edges[dependent].push(dependency);
@@ -70,7 +73,10 @@ impl UnitGraph {
         // the ones with nothing to wait for.
         let mut indegree: Vec<usize> = self.edges.iter().map(Vec::len).collect();
         let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<usize>> =
-            (0..self.units.len()).filter(|&i| indegree[i] == 0).map(std::cmp::Reverse).collect();
+            (0..self.units.len())
+                .filter(|&i| indegree[i] == 0)
+                .map(std::cmp::Reverse)
+                .collect();
         let mut order = Vec::with_capacity(self.units.len());
         while let Some(std::cmp::Reverse(i)) = ready.pop() {
             order.push(i);
@@ -88,7 +94,10 @@ impl UnitGraph {
                 .collect();
             cycle.sort();
             cycle.dedup();
-            return Err(Error::Resolve(format!("dependency cycle between: {}", cycle.join(", "))));
+            return Err(Error::Resolve(format!(
+                "dependency cycle between: {}",
+                cycle.join(", ")
+            )));
         }
         Ok(order)
     }
@@ -100,7 +109,9 @@ impl UnitGraph {
     pub fn dependents_count(&self) -> Vec<usize> {
         // Count transitive dependents with a reverse Kahn pass over the
         // condensed topological order.
-        let order = self.topo_order().unwrap_or_else(|_| (0..self.units.len()).collect());
+        let order = self
+            .topo_order()
+            .unwrap_or_else(|_| (0..self.units.len()).collect());
         let mut counts = vec![0usize; self.units.len()];
         for &i in order.iter().rev() {
             for &dep in &self.edges[i] {
@@ -117,7 +128,9 @@ impl UnitGraph {
     /// scheduler pops the highest score first: keeping the longest chain busy
     /// is what stops a 2-core machine from idling one core behind a straggler.
     pub fn critical_path_priority(&self) -> Vec<u32> {
-        let order = self.topo_order().unwrap_or_else(|_| (0..self.units.len()).collect());
+        let order = self
+            .topo_order()
+            .unwrap_or_else(|_| (0..self.units.len()).collect());
         let mut prio = vec![1u32; self.units.len()];
         for &i in order.iter().rev() {
             let mut best = 0u32;
@@ -140,10 +153,15 @@ impl UnitGraph {
             .collect();
         // Also mark units of the same package even when the filter only
         // matched some of its units, so a `-p` selection stays whole.
-        let mut names: Vec<String> = stack.iter().map(|&i| self.units[i].pkg.name.clone()).collect();
+        let mut names: Vec<String> = stack
+            .iter()
+            .map(|&i| self.units[i].pkg.name.clone())
+            .collect();
         names.sort();
         names.dedup();
-        let extra: Vec<usize> = (0..self.units.len()).filter(|&i| names.contains(&self.units[i].pkg.name)).collect();
+        let extra: Vec<usize> = (0..self.units.len())
+            .filter(|&i| names.contains(&self.units[i].pkg.name))
+            .collect();
         stack.extend(extra);
         while let Some(i) = stack.pop() {
             if affected.insert(i, ()).is_none() {
@@ -161,7 +179,7 @@ mod tests {
     use crate::unit::{CompileMode, TargetKind};
     use semver::Version;
     use std::collections::BTreeSet;
-    
+
     fn unit(name: &str) -> Unit {
         Unit {
             pkg: PackageId::registry(name, Version::new(0, 1, 0), SourceId::CRATES_IO),

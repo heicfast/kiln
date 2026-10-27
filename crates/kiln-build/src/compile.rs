@@ -42,7 +42,12 @@ pub struct UnitEnv {
 impl UnitEnv {
     /// No build script output.
     pub fn plain() -> Self {
-        Self { rustc_flags: Vec::new(), env: BTreeMap::new(), out_dir: None, links: None }
+        Self {
+            rustc_flags: Vec::new(),
+            env: BTreeMap::new(),
+            out_dir: None,
+            links: None,
+        }
     }
 }
 
@@ -92,8 +97,12 @@ pub fn rustc_argv(
             argv.push("--crate-type".into());
             argv.push("proc-macro".into());
         }
-        TargetKind::BuildScript | TargetKind::Bin | TargetKind::Test | TargetKind::Bench
-        | TargetKind::Example | TargetKind::TestHarness => {
+        TargetKind::BuildScript
+        | TargetKind::Bin
+        | TargetKind::Test
+        | TargetKind::Bench
+        | TargetKind::Example
+        | TargetKind::TestHarness => {
             argv.push("--emit=dep-info,metadata,link".into());
             argv.push("--crate-type".into());
             argv.push("bin".into());
@@ -101,7 +110,17 @@ pub fn rustc_argv(
     }
 
     argv.push("-C".into());
-    argv.push(format!("metadata={}", short_metadata(unit, planned_edition, unit_short)));
+    argv.push(format!(
+        "metadata={}",
+        short_metadata(unit, planned_edition, unit_short)
+    ));
+
+    // Pin the output filenames to our key: rustc appends the
+    // extra-filename to `lib<crate>-<name>.rlib`, `<bin>-<name>`, `.rmeta`
+    // and `.d` alike — this is what makes the naming convention
+    // `unit_outputs` predicts hold exactly.
+    argv.push("-C".into());
+    argv.push(format!("extra-filename=-{unit_short}"));
 
     // Edition.
     argv.push("--edition".into());
@@ -112,7 +131,11 @@ pub fn rustc_argv(
     argv.push(format!("opt-level={}", profile.opt_level));
     if profile.debug > 0 {
         argv.push("-C".into());
-        argv.push(if profile.debug >= 2 { "debuginfo=2".into() } else { "debuginfo=1".into() });
+        argv.push(if profile.debug >= 2 {
+            "debuginfo=2".into()
+        } else {
+            "debuginfo=1".into()
+        });
     }
     if profile.debug_assertions {
         argv.push("-C".into());
@@ -139,7 +162,14 @@ pub fn rustc_argv(
     argv.push("incremental=false".into());
 
     // The fast linker, when one was chosen (final artifacts only).
-    if matches!(unit.kind, TargetKind::Bin | TargetKind::Test | TargetKind::Bench | TargetKind::Example | TargetKind::BuildScript) {
+    if matches!(
+        unit.kind,
+        TargetKind::Bin
+            | TargetKind::Test
+            | TargetKind::Bench
+            | TargetKind::Example
+            | TargetKind::BuildScript
+    ) {
         argv.extend(linker_args.iter().cloned());
     }
 
@@ -189,7 +219,13 @@ pub fn rustc_argv(
         env_map.insert("OUT_DIR".into(), out.to_string_lossy().into_owned());
     }
     if let Some(links) = &env.links {
-        env_map.insert(format!("CARGO_PKG_{}", links.to_uppercase().replace('-', "_")), env_map.get("CARGO_MANIFEST_LINKS").cloned().unwrap_or_default());
+        env_map.insert(
+            format!("CARGO_PKG_{}", links.to_uppercase().replace('-', "_")),
+            env_map
+                .get("CARGO_MANIFEST_LINKS")
+                .cloned()
+                .unwrap_or_default(),
+        );
     }
 
     // Where the outputs go.
@@ -217,7 +253,12 @@ pub fn unit_outputs(unit: &Unit, unit_short: &str) -> UnitOutputs {
             .then(|| format!("deps/{lib_base}.rmeta")),
         bin: matches!(
             unit.kind,
-            TargetKind::Bin | TargetKind::Test | TargetKind::Bench | TargetKind::Example | TargetKind::BuildScript | TargetKind::TestHarness
+            TargetKind::Bin
+                | TargetKind::Test
+                | TargetKind::Bench
+                | TargetKind::Example
+                | TargetKind::BuildScript
+                | TargetKind::TestHarness
         )
         .then(|| format!("deps/{base}"))
         .filter(|_| !is_check),
@@ -238,7 +279,11 @@ fn short_metadata(unit: &Unit, edition: &str, unit_short: &str) -> String {
         TargetKind::BuildScript => "build",
         TargetKind::TestHarness => "harness",
     };
-    format!("kiln{kind}{}{}", edition, &unit_short[..8.min(unit_short.len())])
+    format!(
+        "kiln{kind}{}{}",
+        edition,
+        &unit_short[..8.min(unit_short.len())]
+    )
 }
 
 /// Run one rustc invocation, inheriting stdout/stderr so the user sees
@@ -255,7 +300,8 @@ pub fn run_rustc(
         cmd.env(k, v);
     }
     // Diagnostics go to the terminal as they happen.
-    cmd.stdout(std::process::Stdio::inherit()).stderr(std::process::Stdio::inherit());
+    cmd.stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
     let output = cmd.output().map_err(|e| Error::io("run", rustc, e))?;
     if !output.status.success() {
         return Err(Error::CommandFailed {
@@ -296,7 +342,10 @@ mod tests {
             Path::new("/ws/target/debug"),
             Path::new("/ws/target/debug"),
             None,
-            &[("dep".into(), PathBuf::from("/ws/target/debug/deps/libdep-abc.rlib"))],
+            &[(
+                "dep".into(),
+                PathBuf::from("/ws/target/debug/deps/libdep-abc.rlib"),
+            )],
             &UnitEnv::plain(),
             "abcd1234efgh5678",
             &[],
@@ -304,14 +353,19 @@ mod tests {
         )
         .unwrap();
         let joined = argv.join(" ");
-        assert!(argv[0].ends_with("src/lib.rs"), "entry file first: {argv:?}");
-        assert!(joined.contains("--crate-name my-crate"));
+        assert!(
+            argv[0].ends_with("src/lib.rs"),
+            "entry file first: {argv:?}"
+        );
+        assert!(joined.contains("--crate-name my_crate"));
         assert!(joined.contains("--crate-type rlib"));
         assert!(joined.contains("--edition 2021"));
         assert!(joined.contains("opt-level=0"));
         assert!(joined.contains("--extern dep=/ws/target/debug/deps/libdep-abc.rlib"));
         assert!(joined.contains("feature=\"serde\""));
         assert!(joined.contains("-C metadata=kilnlib2021abcd1234"));
+        // The filename suffix is pinned to our key, not rustc's own hash.
+        assert!(joined.contains("-C extra-filename=-abcd1234efgh5678"));
         assert!(joined.contains("incremental=false"));
         assert!(joined.contains("--remap-path-prefix"));
     }
@@ -319,15 +373,57 @@ mod tests {
     #[test]
     fn proc_macros_and_bins_and_tests_differ() {
         let pm = unit(TargetKind::ProcMacro, false);
-        let argv = rustc_argv(&pm, "2021", Path::new("/ws"), &Profile::dev(), Path::new("/t"), Path::new("/t"), None, &[], &UnitEnv::plain(), "1234567812345678", &[], &[]).unwrap();
+        let argv = rustc_argv(
+            &pm,
+            "2021",
+            Path::new("/ws"),
+            &Profile::dev(),
+            Path::new("/t"),
+            Path::new("/t"),
+            None,
+            &[],
+            &UnitEnv::plain(),
+            "1234567812345678",
+            &[],
+            &[],
+        )
+        .unwrap();
         assert!(argv.contains(&"proc-macro".to_string()));
 
         let bin = unit(TargetKind::Bin, false);
-        let argv = rustc_argv(&bin, "2021", Path::new("/ws"), &Profile::dev(), Path::new("/t"), Path::new("/t"), None, &[], &UnitEnv::plain(), "1234567812345678", &[], &[]).unwrap();
+        let argv = rustc_argv(
+            &bin,
+            "2021",
+            Path::new("/ws"),
+            &Profile::dev(),
+            Path::new("/t"),
+            Path::new("/t"),
+            None,
+            &[],
+            &UnitEnv::plain(),
+            "1234567812345678",
+            &[],
+            &[],
+        )
+        .unwrap();
         assert!(argv.contains(&"bin".to_string()));
 
         let harness = unit(TargetKind::TestHarness, true);
-        let argv = rustc_argv(&harness, "2021", Path::new("/ws"), &Profile::dev(), Path::new("/t"), Path::new("/t"), None, &[], &UnitEnv::plain(), "1234567812345678", &[], &[]).unwrap();
+        let argv = rustc_argv(
+            &harness,
+            "2021",
+            Path::new("/ws"),
+            &Profile::dev(),
+            Path::new("/t"),
+            Path::new("/t"),
+            None,
+            &[],
+            &UnitEnv::plain(),
+            "1234567812345678",
+            &[],
+            &[],
+        )
+        .unwrap();
         assert!(argv.contains(&"--test".to_string()));
         assert!(argv.contains(&"test".to_string()));
     }
@@ -336,7 +432,21 @@ mod tests {
     fn check_mode_emits_metadata_only() {
         let mut u = unit(TargetKind::Lib, false);
         u.mode = CompileMode::Check;
-        let argv = rustc_argv(&u, "2021", Path::new("/ws"), &Profile::dev(), Path::new("/t"), Path::new("/t"), None, &[], &UnitEnv::plain(), "1234567812345678", &[], &[]).unwrap();
+        let argv = rustc_argv(
+            &u,
+            "2021",
+            Path::new("/ws"),
+            &Profile::dev(),
+            Path::new("/t"),
+            Path::new("/t"),
+            None,
+            &[],
+            &UnitEnv::plain(),
+            "1234567812345678",
+            &[],
+            &[],
+        )
+        .unwrap();
         let joined = argv.join(" ");
         assert!(joined.contains("--emit=dep-info,metadata"));
         assert!(!joined.contains("--crate-type"));
@@ -346,10 +456,29 @@ mod tests {
     fn build_script_flags_and_env_flow_through() {
         let u = unit(TargetKind::Lib, false);
         let mut env = UnitEnv::plain();
-        env.rustc_flags = vec!["--cfg".into(), "has_feature".into(), "-C".into(), "target-feature=+sse2".into()];
+        env.rustc_flags = vec![
+            "--cfg".into(),
+            "has_feature".into(),
+            "-C".into(),
+            "target-feature=+sse2".into(),
+        ];
         env.env.insert("SOME_VAR".into(), "value".into());
         env.out_dir = Some(PathBuf::from("/ws/target/debug/build/my-crate-abc/out"));
-        let argv = rustc_argv(&u, "2021", Path::new("/ws"), &Profile::dev(), Path::new("/t"), Path::new("/t"), None, &[], &env, "1234567812345678", &[], &[]).unwrap();
+        let argv = rustc_argv(
+            &u,
+            "2021",
+            Path::new("/ws"),
+            &Profile::dev(),
+            Path::new("/t"),
+            Path::new("/t"),
+            None,
+            &[],
+            &env,
+            "1234567812345678",
+            &[],
+            &[],
+        )
+        .unwrap();
         let joined = argv.join(" ");
         assert!(joined.contains("has_feature"));
         assert!(joined.contains("target-feature=+sse2"));
@@ -359,10 +488,16 @@ mod tests {
     fn outputs_follow_the_deps_layout() {
         let u = unit(TargetKind::Lib, false);
         let out = unit_outputs(&u, "abcd1234efgh5678");
-        assert_eq!(out.rlib.as_deref(), Some("deps/libmy-crate-abcd1234efgh5678.rlib"));
-        assert_eq!(out.rmeta.as_deref(), Some("deps/libmy-crate-abcd1234efgh5678.rmeta"));
+        assert_eq!(
+            out.rlib.as_deref(),
+            Some("deps/libmy_crate-abcd1234efgh5678.rlib")
+        );
+        assert_eq!(
+            out.rmeta.as_deref(),
+            Some("deps/libmy_crate-abcd1234efgh5678.rmeta")
+        );
         let u = unit(TargetKind::Bin, false);
         let out = unit_outputs(&u, "abcd1234efgh5678");
-        assert_eq!(out.bin.as_deref(), Some("deps/my-crate-abcd1234efgh5678"));
+        assert_eq!(out.bin.as_deref(), Some("deps/my_crate-abcd1234efgh5678"));
     }
 }

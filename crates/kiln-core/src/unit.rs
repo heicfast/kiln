@@ -3,11 +3,12 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-
 use crate::ids::PackageId;
 
 /// What a target is, from the manifest's point of view.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum TargetKind {
     /// A library (`--crate-type lib` or `rlib`).
     Lib,
@@ -30,12 +31,22 @@ pub enum TargetKind {
 impl TargetKind {
     /// Whether units of this kind are linked as executables.
     pub fn is_executable(self) -> bool {
-        matches!(self, TargetKind::Bin | TargetKind::Test | TargetKind::Bench | TargetKind::Example | TargetKind::BuildScript)
+        matches!(
+            self,
+            TargetKind::Bin
+                | TargetKind::Test
+                | TargetKind::Bench
+                | TargetKind::Example
+                | TargetKind::BuildScript
+        )
     }
 
     /// Whether this is a test-flavoured unit.
     pub fn is_test(self) -> bool {
-        matches!(self, TargetKind::Test | TargetKind::Bench | TargetKind::TestHarness)
+        matches!(
+            self,
+            TargetKind::Test | TargetKind::Bench | TargetKind::TestHarness
+        )
     }
 }
 
@@ -91,11 +102,14 @@ impl Unit {
     /// Test harnesses and test targets compile the same sources under a
     /// different crate name so their artifacts never collide with the lib's.
     pub fn crate_name(&self) -> String {
-        match (self.kind, self.test) {
+        let raw = match (self.kind, self.test) {
             (TargetKind::Lib | TargetKind::ProcMacro, true) => format!("{}-test", self.target_name),
             (TargetKind::Bin, true) => format!("{}-test", self.target_name),
             _ => self.target_name.clone(),
-        }
+        };
+        // rustc wants an identifier: dashes become underscores (a package
+        // published as `foo-bar` compiles with crate name `foo_bar`).
+        raw.replace('-', "_")
     }
 }
 
@@ -205,7 +219,11 @@ mod tests {
         let mut harness = lib.clone();
         harness.test = true;
         assert_eq!(lib.crate_name(), "foo");
-        assert_eq!(harness.crate_name(), "foo-test");
+        assert_eq!(harness.crate_name(), "foo_test");
+        // Dashes never reach rustc: an identifier is required.
+        let mut dashed = lib.clone();
+        dashed.target_name = "foo-bar".into();
+        assert_eq!(dashed.crate_name(), "foo_bar");
     }
 
     #[test]
@@ -220,7 +238,10 @@ mod tests {
             dep_artifacts: vec![],
             input_hash: [1; 32],
         };
-        let same = UnitKey { unit: u.clone(), ..base.clone() };
+        let same = UnitKey {
+            unit: u.clone(),
+            ..base.clone()
+        };
         assert_eq!(base.digest(), same.digest());
         assert_eq!(base.short().len(), 16);
 

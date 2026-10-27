@@ -10,7 +10,7 @@ use std::path::Path;
 
 use kiln_core::ids::{PackageId, SourceId};
 use kiln_core::{Error, Result};
-use kiln_manifest::{Dependency, Lockfile, LockPackage, Manifest, Workspace};
+use kiln_manifest::{Dependency, LockPackage, Lockfile, Manifest, Workspace};
 
 use crate::index::{IndexCache, IndexEntry};
 use crate::source::RegistrySources;
@@ -68,9 +68,10 @@ pub async fn resolve(
 
     // 1. Try the lockfile: it wins when every constraint is satisfied.
     if let Some(lock) = &lock
-        && let Ok(resolved) = resolve_locked(workspace, request, lock, index, sources).await {
-            return Ok(resolved);
-        }
+        && let Ok(resolved) = resolve_locked(workspace, request, lock, index, sources).await
+    {
+        return Ok(resolved);
+    }
 
     // 2. Resolve afresh, highest version first, and write the new lockfile.
     let (packages, checksums) = resolve_fresh(workspace, request, index, sources).await?;
@@ -82,7 +83,9 @@ pub async fn resolve(
                 name: p.id.name.clone(),
                 version: p.id.version.clone(),
                 source: match &p.id.source {
-                    SourceId::Registry(_) => Some("registry+https://github.com/rust-lang/crates.io-index".to_owned()),
+                    SourceId::Registry(_) => {
+                        Some("registry+https://github.com/rust-lang/crates.io-index".to_owned())
+                    }
                     SourceId::Path(_) => None,
                 },
                 checksum: checksums.get(&p.id.name).cloned(),
@@ -98,7 +101,10 @@ pub async fn resolve(
             .collect(),
     };
     new_lock.write(&lock_path)?;
-    Ok(ResolvedWorkspace { packages, reused_lock: false })
+    Ok(ResolvedWorkspace {
+        packages,
+        reused_lock: false,
+    })
 }
 
 type Checksums = BTreeMap<String, String>;
@@ -135,7 +141,10 @@ async fn resolve_locked(
     let needs = r.collect_member_needs();
     r.walk_needs(needs, Some(lock)).await?;
     r.validate_against_lock(lock)?;
-    Ok(ResolvedWorkspace { packages: r.packages, reused_lock: true })
+    Ok(ResolvedWorkspace {
+        packages: r.packages,
+        reused_lock: true,
+    })
 }
 
 /// The fresh path: search the index, highest version first.
@@ -202,7 +211,11 @@ impl Resolver<'_> {
     }
 
     /// The dependencies of `manifest` that apply to this build.
-    fn applicable_deps(&self, manifest: &Manifest, is_registry: bool) -> BTreeMap<String, Dependency> {
+    fn applicable_deps(
+        &self,
+        manifest: &Manifest,
+        is_registry: bool,
+    ) -> BTreeMap<String, Dependency> {
         let mut out = BTreeMap::new();
         for dep in manifest.deps.values() {
             out.insert(dep.name.clone(), dep.clone());
@@ -295,23 +308,25 @@ impl Resolver<'_> {
     ) -> Result<IndexEntry> {
         if let Some(lock) = lock
             && let Some(locked) = lock.find(name)
-                && dep.req.matches(&locked.version) {
-                    let entries = self.index.entries(name).await?;
-                    if let Some(entry) = entries.iter().find(|e| e.vers == locked.version) {
-                        if let Some(exact) = &dep.exact
-                            && exact != &locked.version {
-                                return Err(Error::Resolve(format!(
-                                    "`{name}` is locked at {} but {} requires exactly {exact}",
-                                    locked.version, dep.name
-                                )));
-                            }
-                        return Ok(entry.clone());
-                    }
+            && dep.req.matches(&locked.version)
+        {
+            let entries = self.index.entries(name).await?;
+            if let Some(entry) = entries.iter().find(|e| e.vers == locked.version) {
+                if let Some(exact) = &dep.exact
+                    && exact != &locked.version
+                {
                     return Err(Error::Resolve(format!(
-                        "`{name} {}` is locked but absent from the registry index",
-                        locked.version
+                        "`{name}` is locked at {} but {} requires exactly {exact}",
+                        locked.version, dep.name
                     )));
                 }
+                return Ok(entry.clone());
+            }
+            return Err(Error::Resolve(format!(
+                "`{name} {}` is locked but absent from the registry index",
+                locked.version
+            )));
+        }
         let entries = self.index.entries(name).await?;
         let mut candidates: Vec<&IndexEntry> = entries
             .iter()
@@ -338,28 +353,27 @@ impl Resolver<'_> {
         for pkg in self.packages.values() {
             for dep in pkg.deps.values() {
                 if let Some(locked) = lock.find(dep.crate_name())
-                    && !dep.req.matches(&locked.version) {
-                        return Err(Error::Resolve(format!(
-                            "the lockfile pins `{}` to {}, but `{}` requires `{}`; re-resolve (delete Cargo.lock or run kiln fetch)",
-                            dep.crate_name(),
-                            locked.version,
-                            pkg.id.name,
-                            dep.req
-                        )));
-                    }
+                    && !dep.req.matches(&locked.version)
+                {
+                    return Err(Error::Resolve(format!(
+                        "the lockfile pins `{}` to {}, but `{}` requires `{}`; re-resolve (delete Cargo.lock or run kiln fetch)",
+                        dep.crate_name(),
+                        locked.version,
+                        pkg.id.name,
+                        dep.req
+                    )));
+                }
             }
         }
         Ok(())
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use kiln_manifest::dependency::DepKind;
-    
+
     use std::path::PathBuf;
 
     fn member(name: &str, deps: &[(&str, &str)]) -> Manifest {
@@ -417,7 +431,10 @@ mod tests {
         );
         let none = resolver.applicable_deps(&with_dev, false);
         assert!(!none.contains_key("criterion"), "dev deps without tests");
-        let request_dev = ResolveRequest { include_dev: true, ..request };
+        let request_dev = ResolveRequest {
+            include_dev: true,
+            ..request
+        };
         let resolver_dev = Resolver {
             workspace: &ws,
             request: &request_dev,

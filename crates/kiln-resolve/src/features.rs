@@ -83,7 +83,9 @@ pub fn resolve_features(
 
     // Expand to the fixed point.
     while let Some((pkg_name, feature)) = queue.pop() {
-        let Some(pkg) = ws.packages.get(&pkg_name) else { continue };
+        let Some(pkg) = ws.packages.get(&pkg_name) else {
+            continue;
+        };
         let manifest = &pkg.manifest;
         let set = out.entry(pkg_name.clone()).or_default();
 
@@ -115,7 +117,11 @@ pub fn resolve_features(
                     }
                 }
             }
-        } else if manifest.deps.values().any(|d| d.name == feature && d.optional) {
+        } else if manifest
+            .deps
+            .values()
+            .any(|d| d.name == feature && d.optional)
+        {
             // An implicit optional-dependency enable: `foo = ["bar"]` where
             // `bar` is an optional dependency.
             set.optional_deps.insert(feature);
@@ -128,7 +134,9 @@ pub fn resolve_features(
         else if feature != "default" {
             return Err(kiln_core::Error::parse(
                 format!("features of `{pkg_name}`"),
-                format!("`{feature}` is neither a feature nor an optional dependency of `{pkg_name}`"),
+                format!(
+                    "`{feature}` is neither a feature nor an optional dependency of `{pkg_name}`"
+                ),
             ));
         }
     }
@@ -146,7 +154,10 @@ pub fn resolve_features(
     Ok(out)
 }
 
-fn dependency_by_crate_name<'a>(pkg: &'a crate::resolver::ResolvedPackage, crate_name: &str) -> Option<&'a str> {
+fn dependency_by_crate_name<'a>(
+    pkg: &'a crate::resolver::ResolvedPackage,
+    crate_name: &str,
+) -> Option<&'a str> {
     pkg.deps
         .values()
         .find(|d| d.crate_name() == crate_name)
@@ -157,15 +168,23 @@ fn dependency_by_crate_name<'a>(pkg: &'a crate::resolver::ResolvedPackage, crate
 mod tests {
     use super::*;
     use kiln_core::ids::PackageId;
-    use kiln_manifest::dependency::{DepKind, Dependency};
     use kiln_manifest::Manifest;
+    use kiln_manifest::dependency::{DepKind, Dependency};
 
-    fn pkg_with_features(name: &str, features: &[(&str, &[&str])], optional_deps: &[&str]) -> (String, crate::resolver::ResolvedPackage) {
+    fn pkg_with_features(
+        name: &str,
+        features: &[(&str, &[&str])],
+        optional_deps: &[&str],
+    ) -> (String, crate::resolver::ResolvedPackage) {
         let root = std::env::temp_dir().join(format!("kiln-feat-{name}"));
         let features_table: String = features
             .iter()
             .map(|(f, list)| {
-                let items = list.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(", ");
+                let items = list
+                    .iter()
+                    .map(|s| format!("\"{s}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("{f} = [{items}]")
             })
             .collect::<Vec<_>>()
@@ -194,7 +213,10 @@ mod tests {
     }
 
     fn resolved(pkgs: Vec<(String, crate::resolver::ResolvedPackage)>) -> ResolvedWorkspace {
-        ResolvedWorkspace { packages: pkgs.into_iter().collect(), reused_lock: true }
+        ResolvedWorkspace {
+            packages: pkgs.into_iter().collect(),
+            reused_lock: true,
+        }
     }
 
     #[test]
@@ -221,7 +243,9 @@ mod tests {
             &["opt1"],
         )]);
         let mut selections = FeatureSelections::default();
-        selections.features.insert("app".into(), ["fast".to_owned()].into_iter().collect());
+        selections
+            .features
+            .insert("app".into(), ["fast".to_owned()].into_iter().collect());
         let sets = resolve_features(&ws, &selections).unwrap();
         // Default is still on alongside the explicit selection.
         assert!(sets["app"].features.contains("big"));
@@ -238,7 +262,9 @@ mod tests {
     fn unknown_features_are_errors_not_silence() {
         let ws = resolved(vec![pkg_with_features("app", &[], &[])]);
         let mut selections = FeatureSelections::default();
-        selections.features.insert("app".into(), ["ghost".to_owned()].into_iter().collect());
+        selections
+            .features
+            .insert("app".into(), ["ghost".to_owned()].into_iter().collect());
         let err = resolve_features(&ws, &selections).unwrap_err();
         assert!(err.to_string().contains("ghost"), "{err}");
     }
@@ -252,7 +278,10 @@ mod tests {
             &toml::Value::Table({
                 let mut t = toml::Table::new();
                 t.insert("version".into(), "1".into());
-                t.insert("features".into(), toml::Value::Array(vec![toml::Value::String("b-fast".into())]));
+                t.insert(
+                    "features".into(),
+                    toml::Value::Array(vec![toml::Value::String("b-fast".into())]),
+                );
                 t
             }),
             DepKind::Normal,

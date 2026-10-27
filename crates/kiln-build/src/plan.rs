@@ -4,12 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use kiln_core::unit::{CompileMode, TargetKind, Unit};
-use kiln_core::graph::UnitGraph;
 use kiln_core::Result;
-use kiln_manifest::targets::discover_targets;
+use kiln_core::graph::UnitGraph;
+use kiln_core::unit::{CompileMode, TargetKind, Unit};
 use kiln_manifest::Workspace;
-use kiln_resolve::features::{resolve_features, FeatureSelections, FeatureSet};
+use kiln_manifest::targets::discover_targets;
+use kiln_resolve::features::{FeatureSelections, FeatureSet, resolve_features};
 use kiln_resolve::resolver::{ResolveRequest, ResolvedWorkspace};
 
 use crate::toolchain::Toolchain;
@@ -26,10 +26,13 @@ pub struct PlannedUnit {
     pub edition: String,
     /// The manifest root (sources), absolute.
     pub root: std::path::PathBuf,
-    /// The package's build script output directory key, when it has a script.
+    /// Whether this package has a build script.
     pub has_build_script: bool,
     /// Dev-dependencies included for this unit (test-flavoured units only).
     pub needs_dev_deps: bool,
+    /// Optional dependencies turned on for this package under the resolved
+    /// feature set (the runner wires their `--extern`s from this).
+    pub enabled_optional_deps: std::collections::BTreeSet<String>,
 }
 
 /// The plan: the graph plus per-unit metadata.
@@ -113,10 +116,14 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
                 root: pkg.manifest.root.clone(),
                 has_build_script: pkg.manifest.build_script.is_some(),
                 needs_dev_deps: spec.needs_dev_deps,
+                enabled_optional_deps: features.optional_deps.clone(),
             };
             let idx = graph.add(planned.unit.clone());
             units.push(planned);
-            index.insert((pkg_name.clone(), spec.name, kind, spec.needs_dev_deps), idx);
+            index.insert(
+                (pkg_name.clone(), spec.name, kind, spec.needs_dev_deps),
+                idx,
+            );
         }
     }
 
@@ -124,8 +131,12 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
     //    enabled dependencies; build scripts depend on their build deps' libs.
     for (i, planned) in units.iter().enumerate() {
         let pkg = request.resolved.package(&planned.unit.pkg.name)?;
-        let feature_set = feature_sets.get(&planned.unit.pkg.name).cloned().unwrap_or_default();
-        let deps: Vec<&kiln_manifest::Dependency> = if planned.unit.kind == TargetKind::BuildScript {
+        let feature_set = feature_sets
+            .get(&planned.unit.pkg.name)
+            .cloned()
+            .unwrap_or_default();
+        let deps: Vec<&kiln_manifest::Dependency> = if planned.unit.kind == TargetKind::BuildScript
+        {
             pkg.manifest.build_deps.values().collect()
         } else if planned.needs_dev_deps {
             let mut all: Vec<&kiln_manifest::Dependency> = pkg.manifest.deps.values().collect();
@@ -139,10 +150,14 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
                 continue;
             }
             let target_pkg = request.resolved.packages.get(dep.crate_name());
-            let Some(target_pkg) = target_pkg else { continue };
+            let Some(target_pkg) = target_pkg else {
+                continue;
+            };
             // The dep's lib unit is what a dependent consumes; a package
             // without a lib (bins only) contributes no edge.
-            let Some(lib) = &target_pkg.manifest.lib else { continue };
+            let Some(lib) = &target_pkg.manifest.lib else {
+                continue;
+            };
             let key = (
                 target_pkg.manifest.name.clone(),
                 lib.name.clone(),
@@ -167,12 +182,18 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
         }
         // Test harnesses of a package include the package's own lib.
         if planned.unit.kind == TargetKind::TestHarness
-            && let Some(lib) = &pkg.manifest.lib {
-                let key = (planned.unit.pkg.name.clone(), lib.name.clone(), lib.kind, false);
-                if let Some(&lib_idx) = index.get(&key) {
-                    graph.depend_on(i, lib_idx)?;
-                }
+            && let Some(lib) = &pkg.manifest.lib
+        {
+            let key = (
+                planned.unit.pkg.name.clone(),
+                lib.name.clone(),
+                lib.kind,
+                false,
+            );
+            if let Some(&lib_idx) = index.get(&key) {
+                graph.depend_on(i, lib_idx)?;
             }
+        }
     }
 
     // 5. The requested ends: the selection's bins (build/run) or all its units.
@@ -201,11 +222,19 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
     }
 
     graph.topo_order()?; // a cycle is an error here, not at schedule time
-    Ok(Plan { graph, units, requested })
+    Ok(Plan {
+        graph,
+        units,
+        requested,
+    })
 }
 
 /// Whether a dependency row is on under the feature set.
-fn dep_enabled(dep: &kiln_manifest::Dependency, features: &FeatureSet, resolved: &ResolvedWorkspace) -> bool {
+fn dep_enabled(
+    dep: &kiln_manifest::Dependency,
+    features: &FeatureSet,
+    resolved: &ResolvedWorkspace,
+) -> bool {
     if !dep.optional {
         return true;
     }
@@ -227,7 +256,10 @@ fn dep_enabled(dep: &kiln_manifest::Dependency, features: &FeatureSet, resolved:
 
 /// The resolve request implied by a plan request.
 pub fn resolve_request_for(mode: CompileMode, target: &str) -> ResolveRequest {
-    ResolveRequest { include_dev: mode == CompileMode::Test, target_triple: target.to_owned() }
+    ResolveRequest {
+        include_dev: mode == CompileMode::Test,
+        target_triple: target.to_owned(),
+    }
 }
 
 #[cfg(test)]
@@ -252,7 +284,10 @@ mod tests {
             "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\nliba = { path = \"../liba\" }\n",
         );
         write(&root.join("app/src/main.rs"), "fn main() {}");
-        write(&root.join("liba/Cargo.toml"), "[package]\nname = \"liba\"\nversion = \"0.1.0\"\n");
+        write(
+            &root.join("liba/Cargo.toml"),
+            "[package]\nname = \"liba\"\nversion = \"0.1.0\"\n",
+        );
         write(&root.join("liba/src/lib.rs"), "pub fn a() {}");
     }
 
@@ -269,7 +304,10 @@ mod tests {
                 },
             );
         }
-        ResolvedWorkspace { packages, reused_lock: true }
+        ResolvedWorkspace {
+            packages,
+            reused_lock: true,
+        }
     }
 
     #[test]
@@ -301,9 +339,21 @@ mod tests {
         .unwrap();
 
         // Units: app bin, liba lib, liba build script.
-        assert!(plan.units.iter().any(|u| u.unit.kind == TargetKind::Bin && u.unit.pkg.name == "app"));
-        assert!(plan.units.iter().any(|u| u.unit.kind == TargetKind::Lib && u.unit.pkg.name == "liba"));
-        assert!(plan.units.iter().any(|u| u.unit.kind == TargetKind::BuildScript));
+        assert!(
+            plan.units
+                .iter()
+                .any(|u| u.unit.kind == TargetKind::Bin && u.unit.pkg.name == "app")
+        );
+        assert!(
+            plan.units
+                .iter()
+                .any(|u| u.unit.kind == TargetKind::Lib && u.unit.pkg.name == "liba")
+        );
+        assert!(
+            plan.units
+                .iter()
+                .any(|u| u.unit.kind == TargetKind::BuildScript)
+        );
 
         // The requested end is the bin.
         assert_eq!(plan.requested.len(), 1);
@@ -311,10 +361,14 @@ mod tests {
 
         // Topological sanity: every dependency index precedes dependents.
         let order = plan.graph.topo_order().unwrap();
-        let position: BTreeMap<usize, usize> = order.iter().enumerate().map(|(pos, &i)| (i, pos)).collect();
+        let position: BTreeMap<usize, usize> =
+            order.iter().enumerate().map(|(pos, &i)| (i, pos)).collect();
         for (dependent, deps) in plan.graph.edges.iter().enumerate() {
             for &dep in deps {
-                assert!(position[&dep] < position[&dependent], "dependency must come first");
+                assert!(
+                    position[&dep] < position[&dependent],
+                    "dependency must come first"
+                );
             }
         }
     }
@@ -342,6 +396,10 @@ mod tests {
             toolchain: &tc,
         })
         .unwrap();
-        assert!(plan.units.iter().any(|u| u.unit.kind == TargetKind::TestHarness));
+        assert!(
+            plan.units
+                .iter()
+                .any(|u| u.unit.kind == TargetKind::TestHarness)
+        );
     }
 }

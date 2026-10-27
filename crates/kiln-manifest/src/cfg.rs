@@ -33,16 +33,26 @@ impl TargetFacts {
         let last = parts.last().copied().unwrap_or("unknown");
         // Triples are arch-vendor-os-env, with the env sometimes absent.
         let (vendor, os, env) = match parts.len() {
-            4 => (parts[1].to_owned(), parts[2].to_owned(), Some(parts[3].to_owned())),
+            4 => (
+                parts[1].to_owned(),
+                parts[2].to_owned(),
+                Some(parts[3].to_owned()),
+            ),
             3 => (parts[1].to_owned(), parts[2].to_owned(), None),
             2 => ("unknown".to_owned(), last.to_owned(), None),
             _ => ("unknown".to_owned(), "unknown".to_owned(), None),
         };
         // The triple says `darwin`; the cfg the compiler exposes says `macos`.
-        let os = if os == "darwin" { "macos".to_owned() } else { os };
+        let os = if os == "darwin" {
+            "macos".to_owned()
+        } else {
+            os
+        };
         let family = match os.as_str() {
-            "linux" | "macos" | "ios" | "freebsd" | "netbsd" | "openbsd" | "android" | "solaris"
-            | "dragonfly" | "illumos" | "haiku" | "watchos" | "tvos" => Some("unix".to_owned()),
+            "linux" | "macos" | "ios" | "freebsd" | "netbsd" | "openbsd" | "android"
+            | "solaris" | "dragonfly" | "illumos" | "haiku" | "watchos" | "tvos" => {
+                Some("unix".to_owned())
+            }
             "windows" => Some("windows".to_owned()),
             _ => None,
         };
@@ -78,11 +88,13 @@ impl TargetFacts {
             "target_vendor" => value == self.vendor,
             // Only the x86_64 baseline that rustc's own target cfg lists
             // carry; anything else is a target feature no baseline target has.
-            "target_feature" => matches!(value, "crt-static" | "fxsr" | "sse" | "sse2") && self.arch == "x86_64",
+            "target_feature" => {
+                matches!(value, "crt-static" | "fxsr" | "sse" | "sse2") && self.arch == "x86_64"
+            }
             other => {
                 return Err(kiln_core::Error::unsupported(format!(
                     "cfg({other} = ...): kiln does not evaluate this cfg key yet"
-                )))
+                )));
             }
         })
     }
@@ -141,8 +153,14 @@ pub fn parse_cfg(expr: &str) -> kiln_core::Result<CfgExpr> {
     let inner = expr
         .strip_prefix("cfg(")
         .and_then(|e| e.strip_suffix(')'))
-        .ok_or_else(|| kiln_core::Error::parse("cfg expression", format!("`{expr}` is not a cfg(...) call")))?;
-    let mut parser = Parser { tokens: tokenize(inner)?, pos: 0, src: inner };
+        .ok_or_else(|| {
+            kiln_core::Error::parse("cfg expression", format!("`{expr}` is not a cfg(...) call"))
+        })?;
+    let mut parser = Parser {
+        tokens: tokenize(inner)?,
+        pos: 0,
+        src: inner,
+    };
     let expr = parser.expr()?;
     if parser.pos != parser.tokens.len() {
         return Err(kiln_core::Error::parse(
@@ -199,7 +217,10 @@ fn tokenize(src: &str) -> kiln_core::Result<Vec<Token>> {
                     s.push(c);
                 }
                 if !closed {
-                    return Err(kiln_core::Error::parse("cfg expression", "unterminated string"));
+                    return Err(kiln_core::Error::parse(
+                        "cfg expression",
+                        "unterminated string",
+                    ));
                 }
                 tokens.push(Token::Str(s));
             }
@@ -219,7 +240,7 @@ fn tokenize(src: &str) -> kiln_core::Result<Vec<Token>> {
                 return Err(kiln_core::Error::parse(
                     "cfg expression",
                     format!("unexpected character `{other}` in `{src}`"),
-                ))
+                ));
             }
         }
     }
@@ -280,7 +301,9 @@ impl<'a> Parser<'a> {
                     Ok(match w.as_str() {
                         "all" => CfgExpr::All(items),
                         "any" => CfgExpr::Any(items),
-                        _ if items.len() == 1 => CfgExpr::Not(Box::new(items.into_iter().next().unwrap())),
+                        _ if items.len() == 1 => {
+                            CfgExpr::Not(Box::new(items.into_iter().next().unwrap()))
+                        }
                         _ => return Err(self.err("`not` takes exactly one operand".to_owned())),
                     })
                 }
@@ -348,7 +371,13 @@ mod tests {
         assert!(eval_cfg("cfg(any(windows, unix))", &linux()).unwrap());
         assert!(eval_cfg("cfg(not(windows))", &linux()).unwrap());
         assert!(!eval_cfg("cfg(not(unix))", &linux()).unwrap());
-        assert!(eval_cfg("cfg(all(not(windows), any(target_env = \"gnu\", target_env = \"musl\")))", &linux()).unwrap());
+        assert!(
+            eval_cfg(
+                "cfg(all(not(windows), any(target_env = \"gnu\", target_env = \"musl\")))",
+                &linux()
+            )
+            .unwrap()
+        );
         assert!(eval_cfg("cfg(all(all(unix)))", &linux()).unwrap());
         // `all()` with no operands is vacuously true, as rustc's cfg says.
         assert!(eval_cfg("cfg(all())", &linux()).unwrap());

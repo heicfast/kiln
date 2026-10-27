@@ -131,7 +131,11 @@ mod tests {
         let root = std::env::temp_dir().join("kiln-t1");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("src")).unwrap();
-        std::fs::write(root.join("Cargo.toml"), "[package]\nname = \"t\"\nversion = \"0.1.0\"\n").unwrap();
+        std::fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"t\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
         std::fs::write(root.join("build.rs"), "fn main() {}").unwrap();
         std::fs::write(root.join("src/lib.rs"), "").unwrap();
         std::fs::write(root.join("src/main.rs"), "fn main() {}").unwrap();

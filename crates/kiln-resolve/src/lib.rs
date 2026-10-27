@@ -12,9 +12,9 @@ pub mod resolver;
 pub mod source;
 
 pub use features::resolve_features;
-pub use index::{IndexCache, IndexEntry, IndexDependency};
-pub use resolver::{resolve, ResolvedPackage, ResolvedWorkspace};
-pub use source::{extract_crate, registry_src_dir, RegistrySources};
+pub use index::{IndexCache, IndexDependency, IndexEntry};
+pub use resolver::{ResolvedPackage, ResolvedWorkspace, resolve};
+pub use source::{RegistrySources, extract_crate, registry_src_dir};
 
 use std::path::PathBuf;
 
@@ -25,7 +25,10 @@ pub fn registry_cache_root() -> PathBuf {
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| {
-            std::env::var("HOME").ok().filter(|s| !s.is_empty()).map(|h| PathBuf::from(h).join(".cache"))
+            std::env::var("HOME")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(|h| PathBuf::from(h).join(".cache"))
         })
         .unwrap_or_else(std::env::temp_dir);
     base.join("kiln").join("registry")

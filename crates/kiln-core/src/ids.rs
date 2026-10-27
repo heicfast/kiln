@@ -9,7 +9,9 @@ use semver::Version;
 ///
 /// The registry source is the crates.io sparse index by default; path sources
 /// cover workspace members and path dependencies.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum SourceId {
     /// A registry, named by its download URL (crates.io unless replaced).
     Registry(String),
@@ -53,7 +55,9 @@ impl fmt::Display for SourceId {
 ///
 /// Two `PackageId`s are equal only when all three agree, which is what makes
 /// them safe keys for cache namespacing and graph nodes.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct PackageId {
     /// The crate name, as the manifest spells it.
     pub name: String,
@@ -75,7 +79,11 @@ impl PackageId {
 
     /// A package id for a registry-resolved package.
     pub fn registry(name: impl Into<String>, version: Version, url: impl Into<String>) -> Self {
-        Self { name: name.into(), version, source: SourceId::Registry(url.into()) }
+        Self {
+            name: name.into(),
+            version,
+            source: SourceId::Registry(url.into()),
+        }
     }
 
     /// `name-version`, the layout the registry and cargo both use on disk.
@@ -94,7 +102,9 @@ impl fmt::Display for PackageId {
 }
 
 /// A compiled-for target: the host, or a `--target` triple.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct TargetTriple(pub String);
 
 impl TargetTriple {

@@ -69,7 +69,7 @@ pub enum Error {
     },
 
     /// Something kiln refuses to do silently (the no-fallback rule: fail fast,
-        /// name what is missing, never take a slower hidden path).
+    /// name what is missing, never take a slower hidden path).
     #[error("{0}")]
     Unsupported(String),
 
@@ -89,9 +89,10 @@ impl Clone for Error {
                 context: context.clone(),
                 source: source.to_string().into(),
             },
-            Error::Missing { path, message } => {
-                Error::Missing { path: path.clone(), message: message.clone() }
-            }
+            Error::Missing { path, message } => Error::Missing {
+                path: path.clone(),
+                message: message.clone(),
+            },
             Error::Io { op, path, source } => Error::Io {
                 op,
                 path: path.clone(),
@@ -106,9 +107,10 @@ impl Clone for Error {
                 command: command.clone(),
                 status: status.clone(),
             },
-            Error::BuildScript { package, message } => {
-                Error::BuildScript { package: package.clone(), message: message.clone() }
-            }
+            Error::BuildScript { package, message } => Error::BuildScript {
+                package: package.clone(),
+                message: message.clone(),
+            },
             Error::Unsupported(m) => Error::Unsupported(m.clone()),
             Error::Bug(m) => Error::Bug(m.clone()),
             Error::LockHeld(m) => Error::LockHeld(m.clone()),
@@ -118,18 +120,35 @@ impl Clone for Error {
 
 impl Error {
     /// Build a `Parse` error.
-    pub fn parse(context: impl Into<String>, source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
-        Self::Parse { context: context.into(), source: source.into() }
+    pub fn parse(
+        context: impl Into<String>,
+        source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::Parse {
+            context: context.into(),
+            source: source.into(),
+        }
     }
 
     /// Build an `Io` error for `op` on `path`.
-    pub fn io(op: &'static str, path: impl Into<std::path::PathBuf>, source: std::io::Error) -> Self {
-        Self::Io { op, path: path.into(), source }
+    pub fn io(
+        op: &'static str,
+        path: impl Into<std::path::PathBuf>,
+        source: std::io::Error,
+    ) -> Self {
+        Self::Io {
+            op,
+            path: path.into(),
+            source,
+        }
     }
 
     /// Build a `Missing` error.
     pub fn missing(path: impl Into<std::path::PathBuf>, message: impl fmt::Display) -> Self {
-        Self::Missing { path: path.into(), message: message.to_string() }
+        Self::Missing {
+            path: path.into(),
+            message: message.to_string(),
+        }
     }
 
     /// Build a `Bug` error.

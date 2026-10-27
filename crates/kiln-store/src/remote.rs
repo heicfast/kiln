@@ -32,12 +32,17 @@ impl Remote {
         let http = reqwest::Client::builder()
             .user_agent(concat!("kiln/", env!("CARGO_PKG_VERSION")))
             .build()
-            .map_err(|e| Error::Network { context: "building the remote client".into(), source: Box::new(e) })?;
+            .map_err(|e| Error::Network {
+                context: "building the remote client".into(),
+                source: Box::new(e),
+            })?;
         Ok(Self { kind, http, token })
     }
 
     fn object_path(dir: &std::path::Path, key: &str) -> std::path::PathBuf {
-        dir.join("objects").join(&key[..2]).join(format!("{key}.zst"))
+        dir.join("objects")
+            .join(&key[..2])
+            .join(format!("{key}.zst"))
     }
 
     /// Fetch one object; `None` when the remote does not have it.
@@ -54,17 +59,17 @@ impl Remote {
                 if let Some(token) = &self.token {
                     request = request.bearer_auth(token);
                 }
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|e| Error::Network { context: format!("fetching {key}"), source: Box::new(e) })?;
+                let response = request.send().await.map_err(|e| Error::Network {
+                    context: format!("fetching {key}"),
+                    source: Box::new(e),
+                })?;
                 match response.status() {
                     s if s == reqwest::StatusCode::NOT_FOUND => Ok(None),
                     s if s.is_success() => {
-                        let bytes = response
-                            .bytes()
-                            .await
-                            .map_err(|e| Error::Network { context: format!("reading {key}"), source: Box::new(e) })?;
+                        let bytes = response.bytes().await.map_err(|e| Error::Network {
+                            context: format!("reading {key}"),
+                            source: Box::new(e),
+                        })?;
                         Ok(Some(bytes.to_vec()))
                     }
                     s => Err(Error::Network {
@@ -95,14 +100,17 @@ impl Remote {
                 if let Some(token) = &self.token {
                     request = request.bearer_auth(token);
                 }
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|e| Error::Network { context: format!("pushing {key}"), source: Box::new(e) })?;
+                let response = request.send().await.map_err(|e| Error::Network {
+                    context: format!("pushing {key}"),
+                    source: Box::new(e),
+                })?;
                 if !response.status().is_success() {
                     return Err(Error::Network {
                         context: format!("pushing {key}"),
-                        source: Box::new(std::io::Error::other(format!("remote answered {}", response.status()))),
+                        source: Box::new(std::io::Error::other(format!(
+                            "remote answered {}",
+                            response.status()
+                        ))),
                     });
                 }
                 Ok(())
@@ -125,20 +133,23 @@ impl Remote {
                 if let Some(token) = &self.token {
                     request = request.bearer_auth(token);
                 }
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|e| Error::Network { context: "checking the remote".into(), source: Box::new(e) })?;
+                let response = request.send().await.map_err(|e| Error::Network {
+                    context: "checking the remote".into(),
+                    source: Box::new(e),
+                })?;
                 if !response.status().is_success() {
                     return Err(Error::Network {
                         context: "checking the remote".into(),
-                        source: Box::new(std::io::Error::other(format!("remote answered {}", response.status()))),
+                        source: Box::new(std::io::Error::other(format!(
+                            "remote answered {}",
+                            response.status()
+                        ))),
                     });
                 }
-                let present: Vec<String> = response
-                    .json()
-                    .await
-                    .map_err(|e| Error::Network { context: "reading the remote's answer".into(), source: Box::new(e) })?;
+                let present: Vec<String> = response.json().await.map_err(|e| Error::Network {
+                    context: "reading the remote's answer".into(),
+                    source: Box::new(e),
+                })?;
                 Ok(present)
             }
         }
@@ -150,7 +161,9 @@ impl Remote {
             RemoteKind::Dir(dir) => {
                 let objects = dir.join("objects");
                 let mut out = Vec::new();
-                let Ok(shards) = std::fs::read_dir(&objects) else { return Ok(out) };
+                let Ok(shards) = std::fs::read_dir(&objects) else {
+                    return Ok(out);
+                };
                 for shard in shards.flatten() {
                     if !shard.path().is_dir() {
                         continue;
@@ -173,20 +186,23 @@ impl Remote {
                 if let Some(token) = &self.token {
                     request = request.bearer_auth(token);
                 }
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|e| Error::Network { context: "listing the remote".into(), source: Box::new(e) })?;
+                let response = request.send().await.map_err(|e| Error::Network {
+                    context: "listing the remote".into(),
+                    source: Box::new(e),
+                })?;
                 if !response.status().is_success() {
                     return Err(Error::Network {
                         context: "listing the remote".into(),
-                        source: Box::new(std::io::Error::other(format!("remote answered {}", response.status()))),
+                        source: Box::new(std::io::Error::other(format!(
+                            "remote answered {}",
+                            response.status()
+                        ))),
                     });
                 }
-                let keys: Vec<String> = response
-                    .json()
-                    .await
-                    .map_err(|e| Error::Network { context: "reading the remote's list".into(), source: Box::new(e) })?;
+                let keys: Vec<String> = response.json().await.map_err(|e| Error::Network {
+                    context: "reading the remote's list".into(),
+                    source: Box::new(e),
+                })?;
                 Ok(keys)
             }
         }
@@ -207,12 +223,21 @@ mod tests {
 
         let key = "9".repeat(64);
         assert!(remote.get(&key).await.unwrap().is_none());
-        assert!(remote.has_many(std::slice::from_ref(&key)).await.unwrap().is_empty());
+        assert!(
+            remote
+                .has_many(std::slice::from_ref(&key))
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
         let payload = b"payload-bytes".to_vec();
         remote.put(&key, &payload).await.unwrap();
         assert_eq!(remote.get(&key).await.unwrap().unwrap(), payload);
-        assert_eq!(remote.has_many(std::slice::from_ref(&key)).await.unwrap(), vec![key.clone()]);
+        assert_eq!(
+            remote.has_many(std::slice::from_ref(&key)).await.unwrap(),
+            vec![key.clone()]
+        );
         assert_eq!(remote.list().await.unwrap(), vec![key]);
         let _ = std::fs::remove_dir_all(&dir);
     }

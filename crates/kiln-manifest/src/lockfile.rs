@@ -46,8 +46,7 @@ pub struct LockDep {
 impl Lockfile {
     /// Parse a Cargo.lock.
     pub fn parse(text: &str) -> Result<Self> {
-        let table: toml::Table =
-            toml::from_str(text).map_err(|e| Error::parse("Cargo.lock", e))?;
+        let table: toml::Table = toml::from_str(text).map_err(|e| Error::parse("Cargo.lock", e))?;
         let version = table
             .get("version")
             .and_then(|v| v.as_integer())
@@ -59,10 +58,14 @@ impl Lockfile {
             )));
         }
         let mut packages = Vec::new();
-        for entry in table.get("package").and_then(|v| v.as_array()).unwrap_or(&Vec::new()) {
-            let entry = entry.as_table().ok_or_else(|| {
-                Error::parse("Cargo.lock", "every [[package]] must be a table")
-            })?;
+        for entry in table
+            .get("package")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&Vec::new())
+        {
+            let entry = entry
+                .as_table()
+                .ok_or_else(|| Error::parse("Cargo.lock", "every [[package]] must be a table"))?;
             let name = entry
                 .get("name")
                 .and_then(|v| v.as_str())
@@ -74,8 +77,14 @@ impl Lockfile {
                 .ok_or_else(|| Error::parse("Cargo.lock", "package.version is required"))?
                 .parse()
                 .map_err(|e| Error::parse(format!("Cargo.lock package {name} version"), e))?;
-            let source = entry.get("source").and_then(|v| v.as_str()).map(str::to_owned);
-            let checksum = entry.get("checksum").and_then(|v| v.as_str()).map(str::to_owned);
+            let source = entry
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
+            let checksum = entry
+                .get("checksum")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
             let mut dependencies = Vec::new();
             if let Some(deps) = entry.get("dependencies").and_then(|v| v.as_array()) {
                 for dep in deps {
@@ -85,7 +94,13 @@ impl Lockfile {
                     dependencies.push(parse_dep_line(line)?);
                 }
             }
-            packages.push(LockPackage { name, version, source, checksum, dependencies });
+            packages.push(LockPackage {
+                name,
+                version,
+                source,
+                checksum,
+                dependencies,
+            });
         }
         Ok(Lockfile { version, packages })
     }
@@ -158,11 +173,20 @@ fn parse_dep_line(line: &str) -> Result<LockDep> {
             let version = first
                 .parse()
                 .map_err(|e| Error::parse(format!("Cargo.lock dependency `{line}`"), e))?;
-            return Ok(LockDep { name: name.to_owned(), version: Some(version) });
+            return Ok(LockDep {
+                name: name.to_owned(),
+                version: Some(version),
+            });
         }
-        return Ok(LockDep { name: name.to_owned(), version: None });
+        return Ok(LockDep {
+            name: name.to_owned(),
+            version: None,
+        });
     }
-    Ok(LockDep { name: line.to_owned(), version: None })
+    Ok(LockDep {
+        name: line.to_owned(),
+        version: None,
+    })
 }
 
 #[cfg(test)]
@@ -217,7 +241,10 @@ checksum = "24de443c3c1b1d8a28e6b1dfb0c1e0e9c0a5b1d2b1b2e0d0e0e0e0e0e0e0e0e0"
         let text = lock.to_string_v4();
         assert!(text.contains("version = 4"));
         let reparsed = Lockfile::parse(&text).unwrap();
-        assert_eq!(reparsed.find("serde").unwrap().checksum, lock.find("serde").unwrap().checksum);
+        assert_eq!(
+            reparsed.find("serde").unwrap().checksum,
+            lock.find("serde").unwrap().checksum
+        );
         assert_eq!(reparsed.packages.len(), lock.packages.len());
     }
 

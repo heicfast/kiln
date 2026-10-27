@@ -42,12 +42,13 @@ impl Workspace {
     pub fn load_root(root: &Path) -> Result<Self> {
         let file = root.join("Cargo.toml");
         let text = std::fs::read_to_string(&file).map_err(|e| Error::io("read", &file, e))?;
-        let table: toml::Table =
-            toml::from_str(&text).map_err(|e| Error::parse(format!("{}/Cargo.toml", root.display()), e))?;
+        let table: toml::Table = toml::from_str(&text)
+            .map_err(|e| Error::parse(format!("{}/Cargo.toml", root.display()), e))?;
 
-        let ws = table.get("workspace").and_then(|v| v.as_table()).ok_or_else(|| {
-            Error::missing(&file, "no [workspace] section; not a workspace root")
-        })?;
+        let ws = table
+            .get("workspace")
+            .and_then(|v| v.as_table())
+            .ok_or_else(|| Error::missing(&file, "no [workspace] section; not a workspace root"))?;
 
         // Members: explicit list plus globs, minus excludes.
         let mut member_dirs: Vec<PathBuf> = Vec::new();
@@ -55,7 +56,10 @@ impl Workspace {
         if let Some(list) = ws.get("members").and_then(|v| v.as_array()) {
             for item in list {
                 let pattern = item.as_str().ok_or_else(|| {
-                    Error::parse("workspace.members", "every member must be a string path or glob")
+                    Error::parse(
+                        "workspace.members",
+                        "every member must be a string path or glob",
+                    )
                 })?;
                 explicit.push(pattern.to_owned());
                 let full = root.join(pattern);
@@ -64,7 +68,10 @@ impl Workspace {
                 } else if full.is_dir() {
                     member_dirs.push(full);
                 } else {
-                    return Err(Error::missing(&full, "workspace member directory does not exist"));
+                    return Err(Error::missing(
+                        &full,
+                        "workspace member directory does not exist",
+                    ));
                 }
             }
         }
@@ -75,7 +82,12 @@ impl Workspace {
             .map(|a| {
                 a.iter()
                     .filter_map(|x| x.as_str())
-                    .map(|s| root.join(s).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_else(|| s.to_owned()))
+                    .map(|s| {
+                        root.join(s)
+                            .file_name()
+                            .map(|f| f.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| s.to_owned())
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -105,10 +117,9 @@ impl Workspace {
 
         let root_pkg = table.get("package").and_then(|v| v.as_table());
         // The root manifest may itself be a member (a package + workspace).
-        if root_pkg.is_some()
-            && !member_dirs.contains(&root.to_path_buf()) {
-                member_dirs.push(root.to_path_buf());
-            }
+        if root_pkg.is_some() && !member_dirs.contains(&root.to_path_buf()) {
+            member_dirs.push(root.to_path_buf());
+        }
 
         // Parse every member, resolving inheritance against this workspace.
         let mut members = Vec::new();
@@ -131,7 +142,10 @@ impl Workspace {
         names.sort_unstable();
         for pair in names.windows(2) {
             if pair[0] == pair[1] {
-                return Err(Error::parse("Cargo.toml", format!("two workspace members are named `{}`", pair[0])));
+                return Err(Error::parse(
+                    "Cargo.toml",
+                    format!("two workspace members are named `{}`", pair[0]),
+                ));
             }
         }
 
@@ -179,7 +193,8 @@ impl Workspace {
                     continue;
                 }
                 let root_file = root.join("Cargo.toml");
-                let root_text = std::fs::read_to_string(&root_file).map_err(|e| Error::io("read", &root_file, e))?;
+                let root_text = std::fs::read_to_string(&root_file)
+                    .map_err(|e| Error::io("read", &root_file, e))?;
                 let root_table: toml::Table = toml::from_str(&root_text)
                     .map_err(|e| Error::parse(format!("{}/Cargo.toml", root.display()), e))?;
                 let ws_pkg = root_table
@@ -191,18 +206,38 @@ impl Workspace {
                 let value = ws_pkg.get(key).ok_or_else(|| {
                     Error::parse(
                         "Cargo.toml",
-                        format!("package.{key} is inherited but [workspace.package] does not define it"),
+                        format!(
+                            "package.{key} is inherited but [workspace.package] does not define it"
+                        ),
                     )
                 })?;
                 match key.as_str() {
-                    "version" => manifest.version = value.as_str().unwrap_or_default().parse().map_err(|e| Error::parse("workspace.package.version", e))?,
-                    "edition" => manifest.edition = crate::Edition::parse(value.as_str().unwrap_or_default())?,
-                    "rust-version" => manifest.rust_version = Some(value.as_str().unwrap_or_default().parse().map_err(|e| Error::parse("workspace.package.rust-version", e))?),
-                    "repository" | "license" | "readme" | "homepage" | "documentation" | "description" | "authors" | "keywords" | "categories" | "publish" | "exclude" | "include" => {}
+                    "version" => {
+                        manifest.version = value
+                            .as_str()
+                            .unwrap_or_default()
+                            .parse()
+                            .map_err(|e| Error::parse("workspace.package.version", e))?
+                    }
+                    "edition" => {
+                        manifest.edition =
+                            crate::Edition::parse(value.as_str().unwrap_or_default())?
+                    }
+                    "rust-version" => {
+                        manifest.rust_version =
+                            Some(
+                                value.as_str().unwrap_or_default().parse().map_err(|e| {
+                                    Error::parse("workspace.package.rust-version", e)
+                                })?,
+                            )
+                    }
+                    "repository" | "license" | "readme" | "homepage" | "documentation"
+                    | "description" | "authors" | "keywords" | "categories" | "publish"
+                    | "exclude" | "include" => {}
                     other => {
                         return Err(Error::unsupported(format!(
                             "package.{other} = {{ workspace = true }}: kiln does not inherit this field yet"
-                        )))
+                        )));
                     }
                 }
             }
@@ -214,9 +249,13 @@ impl Workspace {
             ("dev-dependencies", DepKind::Dev),
             ("build-dependencies", DepKind::Build),
         ] {
-            let Some(deps) = table.get(table_name).and_then(|v| v.as_table()) else { continue };
+            let Some(deps) = table.get(table_name).and_then(|v| v.as_table()) else {
+                continue;
+            };
             for (name, value) in deps {
-                let Some(dep_table) = value.as_table() else { continue };
+                let Some(dep_table) = value.as_table() else {
+                    continue;
+                };
                 if dep_table.get("workspace").and_then(|v| v.as_bool()) != Some(true) {
                     continue;
                 }
@@ -229,7 +268,11 @@ impl Workspace {
                 let mut dep = Dependency::from_workspace_inherit(name, ws_value, &manifest.root)?;
                 // Member-level overrides: features and optional.
                 if let Some(features) = dep_table.get("features").and_then(|v| v.as_array()) {
-                    dep.features.extend(features.iter().filter_map(|f| f.as_str().map(str::to_owned)));
+                    dep.features.extend(
+                        features
+                            .iter()
+                            .filter_map(|f| f.as_str().map(str::to_owned)),
+                    );
                 }
                 if let Some(optional) = dep_table.get("optional").and_then(|v| v.as_bool()) {
                     dep.optional = optional;
@@ -255,7 +298,8 @@ fn find_root(from: &Path) -> Result<PathBuf> {
     while let Some(dir) = current {
         let manifest = dir.join("Cargo.toml");
         if manifest.is_file() {
-            let text = std::fs::read_to_string(&manifest).map_err(|e| Error::io("read", &manifest, e))?;
+            let text =
+                std::fs::read_to_string(&manifest).map_err(|e| Error::io("read", &manifest, e))?;
             let table: toml::Table = toml::from_str(&text)
                 .map_err(|e| Error::parse(format!("{}/Cargo.toml", dir.display()), e))?;
             if table.contains_key("workspace") {
@@ -268,7 +312,10 @@ fn find_root(from: &Path) -> Result<PathBuf> {
         current = dir.parent();
     }
     fallback.ok_or_else(|| {
-        Error::missing(from.join("Cargo.toml"), "no Cargo.toml found in this directory or any parent")
+        Error::missing(
+            from.join("Cargo.toml"),
+            "no Cargo.toml found in this directory or any parent",
+        )
     })
 }
 
@@ -285,7 +332,10 @@ fn expand_glob(root: &Path, pattern: &str, out: &mut Vec<PathBuf>) -> Result<()>
                 if let Ok(entries) = std::fs::read_dir(dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
-                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+                        let name = path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or_default();
                         if glob_match(segment, name) && path.is_dir() && !name.starts_with('.') {
                             next.push(path);
                         }
@@ -381,7 +431,11 @@ edition = { workspace = true }
         assert_eq!(app.version.to_string(), "2.3.4");
         assert_eq!(app.edition, crate::Edition::E2021);
         assert!(app.deps.contains_key("serde"));
-        assert!(app.deps["serde"].req.matches(&semver::Version::new(1, 0, 200)));
+        assert!(
+            app.deps["serde"]
+                .req
+                .matches(&semver::Version::new(1, 0, 200))
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -389,9 +443,18 @@ edition = { workspace = true }
     fn duplicate_member_names_are_an_error() {
         let root = std::env::temp_dir().join(format!("kiln-ws-dup-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        write(&root.join("Cargo.toml"), "[workspace]\nmembers = [\"a\", \"b\"]\n");
-        write(&root.join("a/Cargo.toml"), "[package]\nname = \"same\"\nversion = \"0.1.0\"\n");
-        write(&root.join("b/Cargo.toml"), "[package]\nname = \"same\"\nversion = \"0.1.0\"\n");
+        write(
+            &root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"a\", \"b\"]\n",
+        );
+        write(
+            &root.join("a/Cargo.toml"),
+            "[package]\nname = \"same\"\nversion = \"0.1.0\"\n",
+        );
+        write(
+            &root.join("b/Cargo.toml"),
+            "[package]\nname = \"same\"\nversion = \"0.1.0\"\n",
+        );
         let err = Workspace::load_root(&root).unwrap_err();
         assert!(err.to_string().contains("two workspace members"), "{err}");
         let _ = std::fs::remove_dir_all(&root);
@@ -412,7 +475,10 @@ edition = { workspace = true }
         let root = std::env::temp_dir().join(format!("kiln-ws-walk-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         write(&root.join("Cargo.toml"), "[workspace]\nmembers = [\"m\"]\n");
-        write(&root.join("m/Cargo.toml"), "[package]\nname = \"m\"\nversion = \"0.1.0\"\n");
+        write(
+            &root.join("m/Cargo.toml"),
+            "[package]\nname = \"m\"\nversion = \"0.1.0\"\n",
+        );
         write(&root.join("m/src/lib.rs"), "");
         let found = find_root(&root.join("m/src")).unwrap();
         assert_eq!(found, root);

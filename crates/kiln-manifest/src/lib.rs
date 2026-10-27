@@ -14,14 +14,16 @@ pub mod workspace;
 
 pub use cfg::eval_cfg;
 pub use dependency::{DepKind, Dependency};
-pub use lockfile::{LockDep, Lockfile, LockPackage};
+pub use lockfile::{LockDep, LockPackage, Lockfile};
 pub use manifest::{LibKind, Manifest, PackageTarget};
 pub use targets::{TargetSpec, discover_targets};
 pub use workspace::{Workspace, WorkspaceMember};
 
 /// An edition, old to new; the default when a manifest names none is 2015,
 /// exactly as cargo's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum Edition {
     /// The 2015 edition.
     E2015,
@@ -41,7 +43,10 @@ impl Edition {
             "2018" => Ok(Edition::E2018),
             "2021" => Ok(Edition::E2021),
             "2024" => Ok(Edition::E2024),
-            other => Err(kiln_core::Error::parse("package.edition", format!("unknown edition `{other}`"))),
+            other => Err(kiln_core::Error::parse(
+                "package.edition",
+                format!("unknown edition `{other}`"),
+            )),
         }
     }
 
@@ -57,10 +62,6 @@ impl Edition {
 
     /// The resolver this edition implies (edition 2021+ = resolver 2).
     pub fn default_resolver(self) -> u8 {
-        if self >= Edition::E2021 {
-            2
-        } else {
-            1
-        }
+        if self >= Edition::E2021 { 2 } else { 1 }
     }
 }

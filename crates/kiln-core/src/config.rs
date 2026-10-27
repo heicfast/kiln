@@ -91,20 +91,18 @@ impl KilnConfig {
         let mut cfg = Self::default();
         let file = root.join(".kiln.toml");
         if file.exists() {
-            let text = std::fs::read_to_string(&file)
-                .map_err(|e| crate::Error::io("read", &file, e))?;
-            let table: toml::Table = toml::from_str(&text)
-                .map_err(|e| crate::Error::parse(".kiln.toml", e))?;
+            let text =
+                std::fs::read_to_string(&file).map_err(|e| crate::Error::io("read", &file, e))?;
+            let table: toml::Table =
+                toml::from_str(&text).map_err(|e| crate::Error::parse(".kiln.toml", e))?;
             for (key, value) in &table {
                 match key.as_str() {
                     "remote" => cfg.remote = value.as_str().map(str::to_owned),
                     "remote-token" => cfg.remote_token = value.as_str().map(str::to_owned),
                     "cache-dir" => {
-                        cfg.cache_dir = PathBuf::from(
-                            value.as_str().ok_or_else(|| {
-                                crate::Error::parse(".kiln.toml", "cache-dir must be a string")
-                            })?,
-                        )
+                        cfg.cache_dir = PathBuf::from(value.as_str().ok_or_else(|| {
+                            crate::Error::parse(".kiln.toml", "cache-dir must be a string")
+                        })?)
                     }
                     "jobs" => {
                         cfg.jobs = value.as_integer().and_then(|i| usize::try_from(i).ok());
@@ -117,7 +115,7 @@ impl KilnConfig {
                                 return Err(crate::Error::parse(
                                     ".kiln.toml",
                                     format!("sandbox must be \"on\" or \"off\", got {other:?}"),
-                                ))
+                                ));
                             }
                         }
                     }
@@ -129,8 +127,10 @@ impl KilnConfig {
                             other => {
                                 return Err(crate::Error::parse(
                                     ".kiln.toml",
-                                    format!("cache must be read-write, read-only or off, got {other:?}"),
-                                ))
+                                    format!(
+                                        "cache must be read-write, read-only or off, got {other:?}"
+                                    ),
+                                ));
                             }
                         }
                     }
@@ -141,15 +141,17 @@ impl KilnConfig {
                             other => {
                                 return Err(crate::Error::parse(
                                     ".kiln.toml",
-                                    format!("linker must be \"auto\" or \"default\", got {other:?}"),
-                                ))
+                                    format!(
+                                        "linker must be \"auto\" or \"default\", got {other:?}"
+                                    ),
+                                ));
                             }
                         }
                     }
                     other => {
                         return Err(crate::Error::unsupported(format!(
                             ".kiln.toml: unknown key `{other}`"
-                        )))
+                        )));
                     }
                 }
             }
@@ -185,21 +187,32 @@ impl KilnConfig {
             };
         }
         if let Ok(v) = std::env::var("KILN_JOBS")
-            && let Ok(n) = v.parse::<usize>() {
-                self.jobs = Some(n);
-            }
+            && let Ok(n) = v.parse::<usize>()
+        {
+            self.jobs = Some(n);
+        }
         if let Ok(v) = std::env::var("KILN_SANDBOX") {
-            self.sandbox = if v == "off" { SandboxMode::Off } else { SandboxMode::On };
+            self.sandbox = if v == "off" {
+                SandboxMode::Off
+            } else {
+                SandboxMode::On
+            };
         }
         if let Ok(v) = std::env::var("KILN_LINKER") {
-            self.linker = if v == "default" { LinkerPolicy::Default } else { LinkerPolicy::Auto };
+            self.linker = if v == "default" {
+                LinkerPolicy::Default
+            } else {
+                LinkerPolicy::Auto
+            };
         }
     }
 
     /// The number of parallel jobs to run.
     pub fn jobs(&self) -> usize {
         self.jobs.unwrap_or_else(|| {
-            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
         })
     }
 }
@@ -211,7 +224,10 @@ pub fn default_cache_dir() -> PathBuf {
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| {
-            std::env::var("HOME").ok().filter(|s| !s.is_empty()).map(|h| PathBuf::from(h).join(".cache"))
+            std::env::var("HOME")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(|h| PathBuf::from(h).join(".cache"))
         })
         .unwrap_or_else(std::env::temp_dir);
     base.join("kiln").join("store")
@@ -235,7 +251,11 @@ mod tests {
     fn kiln_toml_is_parsed_and_unknown_keys_refused() {
         let dir = std::env::temp_dir().join(format!("kiln-cfg-test-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join(".kiln.toml"), "remote = \"http://cache.internal:7381\"\njobs = 8\n").unwrap();
+        fs::write(
+            dir.join(".kiln.toml"),
+            "remote = \"http://cache.internal:7381\"\njobs = 8\n",
+        )
+        .unwrap();
         let cfg = KilnConfig::load(&dir).unwrap();
         assert_eq!(cfg.remote.as_deref(), Some("http://cache.internal:7381"));
         assert_eq!(cfg.jobs, Some(8));

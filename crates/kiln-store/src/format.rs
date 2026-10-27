@@ -31,11 +31,18 @@ pub const FORMAT: &str = "KILN1";
 
 impl Entry {
     /// Build an entry from file paths on disk, reading each one.
-    pub fn from_files(description: &str, files: &[(String, std::path::PathBuf, bool)]) -> Result<Self> {
+    pub fn from_files(
+        description: &str,
+        files: &[(String, std::path::PathBuf, bool)],
+    ) -> Result<Self> {
         let mut outputs = Vec::with_capacity(files.len());
         for (rel, path, executable) in files {
             let bytes = std::fs::read(path).map_err(|e| Error::io("read", path, e))?;
-            outputs.push(StoredFile { path: rel.clone(), bytes, executable: *executable });
+            outputs.push(StoredFile {
+                path: rel.clone(),
+                bytes,
+                executable: *executable,
+            });
         }
         Ok(Entry {
             description: description.to_owned(),
@@ -73,7 +80,9 @@ impl Entry {
 pub fn encode(entry: &Entry) -> Result<Vec<u8>> {
     let header = serde_json::to_vec(entry).map_err(|e| Error::parse("store entry", e))?;
     let mut z = zstd::bulk::Compressor::new(3).map_err(|e| Error::parse("zstd", e.to_string()))?;
-    let compressed = z.compress(&header).map_err(|e| Error::parse("zstd", e.to_string()))?;
+    let compressed = z
+        .compress(&header)
+        .map_err(|e| Error::parse("zstd", e.to_string()))?;
     let hash = blake3::hash(&compressed);
     let mut out = Vec::with_capacity(compressed.len() + 80);
     out.extend_from_slice(FORMAT.as_bytes());
@@ -90,7 +99,8 @@ pub fn decode(bytes: &[u8]) -> std::result::Result<Entry, FormatError> {
         .iter()
         .position(|&b| b == b'\n')
         .ok_or(FormatError::Truncated("no header line"))?;
-    let header = std::str::from_utf8(&bytes[..newline]).map_err(|_| FormatError::Truncated("header is not utf-8"))?;
+    let header = std::str::from_utf8(&bytes[..newline])
+        .map_err(|_| FormatError::Truncated("header is not utf-8"))?;
     let (magic, hash_hex) = header
         .split_once(' ')
         .ok_or(FormatError::Truncated("no space in header"))?;
@@ -138,7 +148,10 @@ impl fmt::Display for FormatError {
             FormatError::Truncated(what) => write!(f, "truncated object: {what}"),
             FormatError::WrongFormat(m) => write!(f, "unknown store format `{m}`"),
             FormatError::Corrupt { expected, actual } => {
-                write!(f, "integrity check failed: expected {expected}, got {actual}")
+                write!(
+                    f,
+                    "integrity check failed: expected {expected}, got {actual}"
+                )
             }
             FormatError::Zstd(e) => write!(f, "zstd: {e}"),
             FormatError::Json(e) => write!(f, "json header: {e}"),
@@ -187,7 +200,11 @@ mod tests {
 
     #[test]
     fn tampered_bytes_fail_the_integrity_check() {
-        let entry = Entry { description: "x".into(), outputs: vec![], created_ms: 0 };
+        let entry = Entry {
+            description: "x".into(),
+            outputs: vec![],
+            created_ms: 0,
+        };
         let mut bytes = encode(&entry).unwrap();
         let last = bytes.len() - 1;
         bytes[last] ^= 0x01;
@@ -199,7 +216,10 @@ mod tests {
 
     #[test]
     fn foreign_formats_are_named() {
-        assert!(matches!(decode(b"NOTIT abc\n"), Err(FormatError::WrongFormat(_))));
+        assert!(matches!(
+            decode(b"NOTIT abc\n"),
+            Err(FormatError::WrongFormat(_))
+        ));
     }
 
     #[test]
@@ -207,8 +227,16 @@ mod tests {
         let entry = Entry {
             description: "m".into(),
             outputs: vec![
-                StoredFile { path: "deps/a.rlib".into(), bytes: b"rlib!".to_vec(), executable: false },
-                StoredFile { path: "bin/tool".into(), bytes: b"#!/bin/sh".to_vec(), executable: true },
+                StoredFile {
+                    path: "deps/a.rlib".into(),
+                    bytes: b"rlib!".to_vec(),
+                    executable: false,
+                },
+                StoredFile {
+                    path: "bin/tool".into(),
+                    bytes: b"#!/bin/sh".to_vec(),
+                    executable: true,
+                },
             ],
             created_ms: 0,
         };
@@ -220,9 +248,15 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(dir.join("bin/tool")).unwrap().permissions().mode();
+            let mode = std::fs::metadata(dir.join("bin/tool"))
+                .unwrap()
+                .permissions()
+                .mode();
             assert!(mode & 0o111 != 0, "executable bit not set");
-            let mode = std::fs::metadata(dir.join("deps/a.rlib")).unwrap().permissions().mode();
+            let mode = std::fs::metadata(dir.join("deps/a.rlib"))
+                .unwrap()
+                .permissions()
+                .mode();
             assert!(mode & 0o111 == 0, "executable bit should be off");
         }
         let _ = std::fs::remove_dir_all(&dir);

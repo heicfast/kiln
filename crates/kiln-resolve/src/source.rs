@@ -10,7 +10,9 @@ use sha2::{Digest, Sha256};
 
 /// Where extracted registry sources live.
 pub fn registry_src_dir(name: &str, version: &Version) -> PathBuf {
-    crate::registry_cache_root().join("src").join(format!("{name}-{version}"))
+    crate::registry_cache_root()
+        .join("src")
+        .join(format!("{name}-{version}"))
 }
 
 /// The on-disk home of downloaded `.crate` tarballs.
@@ -45,7 +47,12 @@ impl RegistrySources {
 
     /// Make sure the sources of `name`-`version` are extracted locally,
     /// verifying the sha256 against the index. Returns the package root.
-    pub async fn ensure(&self, name: &str, version: &Version, checksum: Option<&str>) -> Result<PathBuf> {
+    pub async fn ensure(
+        &self,
+        name: &str,
+        version: &Version,
+        checksum: Option<&str>,
+    ) -> Result<PathBuf> {
         let src = registry_src_dir(name, version);
         if src.join("Cargo.toml").is_file() {
             return Ok(src);
@@ -60,7 +67,12 @@ impl RegistrySources {
         Ok(src)
     }
 
-    async fn download(&self, name: &str, version: &Version, checksum: Option<&str>) -> Result<PathBuf> {
+    async fn download(
+        &self,
+        name: &str,
+        version: &Version,
+        checksum: Option<&str>,
+    ) -> Result<PathBuf> {
         let cache_dir = registry_cache_dir();
         std::fs::create_dir_all(&cache_dir).map_err(|e| Error::io("create", &cache_dir, e))?;
         let file = cache_dir.join(format!("{name}-{version}.crate"));
@@ -118,10 +130,15 @@ pub fn extract_crate(tarball: &Path, dest: &Path) -> Result<()> {
         .map_err(|e| Error::parse(tarball.to_string_lossy(), e))?;
     // The tarball has a single top-level directory; move its contents up.
     let mut it = std::fs::read_dir(&staging).map_err(|e| Error::io("read", &staging, e))?;
-    let inner = it.next().ok_or_else(|| Error::missing(tarball, "the archive is empty"))?;
+    let inner = it
+        .next()
+        .ok_or_else(|| Error::missing(tarball, "the archive is empty"))?;
     let inner = inner.map_err(|e| Error::io("read", &staging, e))?.path();
     if !inner.is_dir() {
-        return Err(Error::parse(tarball.to_string_lossy(), "the archive's first entry is not a directory"));
+        return Err(Error::parse(
+            tarball.to_string_lossy(),
+            "the archive's first entry is not a directory",
+        ));
     }
     if dest.exists() {
         std::fs::remove_dir_all(dest).map_err(|e| Error::io("remove", dest, e))?;
@@ -132,9 +149,13 @@ pub fn extract_crate(tarball: &Path, dest: &Path) -> Result<()> {
 }
 
 fn checksum_matches(file: &Path, checksum: Option<&str>) -> bool {
-    let Some(expected) = checksum else { return true };
+    let Some(expected) = checksum else {
+        return true;
+    };
     let mut hasher = Sha256::new();
-    let Ok(mut f) = std::fs::File::open(file) else { return false };
+    let Ok(mut f) = std::fs::File::open(file) else {
+        return false;
+    };
     let mut buf = [0u8; 64 * 1024];
     while let Ok(n) = f.read(&mut buf) {
         if n == 0 {
@@ -160,7 +181,10 @@ mod tests {
     #[test]
     fn download_urls_are_the_crates_io_layout() {
         let url = crate_download_url("serde", &Version::new(1, 0, 210));
-        assert_eq!(url, "https://static.crates.io/crates/serde/serde-1.0.210.crate");
+        assert_eq!(
+            url,
+            "https://static.crates.io/crates/serde/serde-1.0.210.crate"
+        );
     }
 
     #[test]
@@ -179,8 +203,12 @@ mod tests {
             h.set_cksum();
             h
         };
-        archive.append_data(&mut header, "demo-0.1.0/Cargo.toml", std::io::empty()).unwrap();
-        archive.append_data(&mut header, "demo-0.1.0/src/lib.rs", std::io::empty()).unwrap();
+        archive
+            .append_data(&mut header, "demo-0.1.0/Cargo.toml", std::io::empty())
+            .unwrap();
+        archive
+            .append_data(&mut header, "demo-0.1.0/src/lib.rs", std::io::empty())
+            .unwrap();
         archive.into_inner().unwrap().finish().unwrap();
 
         let dest = dir.join("out");

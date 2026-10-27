@@ -19,9 +19,9 @@
 use std::collections::BinaryHeap;
 use std::sync::{Arc, Condvar, Mutex};
 
+use kiln_core::Result;
 use kiln_core::graph::UnitGraph;
 use kiln_core::unit::Unit;
-use kiln_core::Result;
 
 /// How one unit's execution ended.
 #[derive(Debug, Clone)]
@@ -101,7 +101,9 @@ impl Ord for QueueEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Max-heap: highest priority first; ties broken by index for
         // determinism (the same graph schedules the same way every time).
-        self.priority.cmp(&other.priority).then(other.index.cmp(&self.index))
+        self.priority
+            .cmp(&other.priority)
+            .then(other.index.cmp(&self.index))
     }
 }
 
@@ -261,7 +263,10 @@ fn worker_loop(
                         state.remaining_deps[dependent] -= 1;
                         if state.remaining_deps[dependent] == 0 {
                             let priority = state.priorities[dependent];
-                            state.ready.push(QueueEntry { priority, index: dependent });
+                            state.ready.push(QueueEntry {
+                                priority,
+                                index: dependent,
+                            });
                         }
                     }
                     progress = Some((unit, outcome));
@@ -340,7 +345,10 @@ mod tests {
             let ms = *self.per_unit_ms.get(&unit.pkg.name).unwrap_or(&0);
             std::thread::sleep(std::time::Duration::from_millis(ms));
             self.current.fetch_sub(1, Ordering::SeqCst);
-            Ok((blake3::hash(unit.pkg.name.as_bytes()).into(), UnitOutcome::Built))
+            Ok((
+                blake3::hash(unit.pkg.name.as_bytes()).into(),
+                UnitOutcome::Built,
+            ))
         }
     }
 
@@ -409,7 +417,10 @@ mod tests {
             max_concurrency.load(Ordering::SeqCst) >= 2,
             "workers must overlap unit execution"
         );
-        assert!(elapsed < std::time::Duration::from_millis(300), "pool must not serialize: {elapsed:?}");
+        assert!(
+            elapsed < std::time::Duration::from_millis(300),
+            "pool must not serialize: {elapsed:?}"
+        );
     }
 
     #[test]
@@ -429,7 +440,10 @@ mod tests {
                 _: usize,
                 _: &[(usize, UnitOutcome, [u8; 32])],
             ) -> Result<([u8; 32], UnitOutcome)> {
-                Ok((blake3::hash(unit.pkg.name.as_bytes()).into(), UnitOutcome::Built))
+                Ok((
+                    blake3::hash(unit.pkg.name.as_bytes()).into(),
+                    UnitOutcome::Built,
+                ))
             }
         }
         let mut g = UnitGraph::new();
@@ -478,9 +492,16 @@ mod tests {
         g.depend_on(root, mid2).unwrap();
         g.depend_on(mid1, leaf).unwrap();
         g.depend_on(mid2, leaf).unwrap();
-        let names_by_index: std::collections::HashMap<usize, String> =
-            g.units.iter().enumerate().map(|(i, u)| (i, u.pkg.name.clone())).collect();
-        let recorder = Recorder { order: Mutex::new(Vec::new()), names_by_index };
+        let names_by_index: std::collections::HashMap<usize, String> = g
+            .units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| (i, u.pkg.name.clone()))
+            .collect();
+        let recorder = Recorder {
+            order: Mutex::new(Vec::new()),
+            names_by_index,
+        };
         let result = schedule(&g, Arc::new(recorder), 4).unwrap();
         assert_eq!(result.failures.len(), 0);
         assert_eq!(result.executed, 4);

@@ -90,7 +90,10 @@ impl Store {
     }
 
     fn object_path(&self, key: &str) -> PathBuf {
-        self.root.join("objects").join(&key[..2]).join(format!("{key}.zst"))
+        self.root
+            .join("objects")
+            .join(&key[..2])
+            .join(format!("{key}.zst"))
     }
 
     /// The path an object lives at (for the cache server).
@@ -152,11 +155,15 @@ impl Store {
 
     /// Try the remote for a key the local store lacks, and install it.
     pub async fn fetch_remote(&self, key: &str) -> Result<Option<Entry>> {
-        let Some(remote) = &self.remote else { return Ok(None) };
+        let Some(remote) = &self.remote else {
+            return Ok(None);
+        };
         if self.mode == CacheMode::Off {
             return Ok(None);
         }
-        let Some(bytes) = remote.get(key).await? else { return Ok(None) };
+        let Some(bytes) = remote.get(key).await? else {
+            return Ok(None);
+        };
         match format::decode(&bytes) {
             Ok(entry) => {
                 if self.writable() {
@@ -178,7 +185,9 @@ impl Store {
         if !self.push_remote || self.mode == CacheMode::Off {
             return Ok(false);
         }
-        let Some(remote) = &self.remote else { return Ok(false) };
+        let Some(remote) = &self.remote else {
+            return Ok(false);
+        };
         let path = self.object_path(key);
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
@@ -261,7 +270,10 @@ impl Store {
             if !shard.is_dir() {
                 continue;
             }
-            for entry in std::fs::read_dir(&shard).map_err(|e| Error::io("read", &shard, e))?.flatten() {
+            for entry in std::fs::read_dir(&shard)
+                .map_err(|e| Error::io("read", &shard, e))?
+                .flatten()
+            {
                 let name = entry.file_name();
                 let name = name.to_string_lossy();
                 if let Some(key) = name.strip_suffix(".zst") {
@@ -329,7 +341,10 @@ impl Store {
 
 /// Record that a key was used, for LRU collection.
 fn touch_use(root: &Path, key: &str) {
-    let path = root.join("objects").join(&key[..2]).join(format!("{key}.zst"));
+    let path = root
+        .join("objects")
+        .join(&key[..2])
+        .join(format!("{key}.zst"));
     // A file::set_times-based touch; failures never fail a build.
     let now = std::time::SystemTime::now();
     let file = match std::fs::OpenOptions::new().append(true).open(&path) {
@@ -338,7 +353,9 @@ fn touch_use(root: &Path, key: &str) {
     };
     #[cfg(unix)]
     {
-        let times = std::fs::FileTimes::new().set_accessed(now).set_modified(now);
+        let times = std::fs::FileTimes::new()
+            .set_accessed(now)
+            .set_modified(now);
         let _ = file.set_times(times);
     }
     #[cfg(not(unix))]

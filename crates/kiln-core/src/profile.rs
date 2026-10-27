@@ -112,9 +112,16 @@ impl Profile {
         Self::dev()
     }
 
-    /// The bench profile.
+    /// The bench profile (cargo: bench inherits release).
     pub fn bench() -> Self {
-        Self { release: false, ..Self::release() }
+        Self::release()
+    }
+
+    /// The directory under `target/` this profile's artifacts land in
+    /// (cargo's layout: `debug` for dev and test, `release` for release
+    /// and bench).
+    pub fn dir_name(&self) -> &'static str {
+        if self.release { "release" } else { "debug" }
     }
 
     /// Override from a `[profile.<name>]` table's raw toml values.
@@ -122,7 +129,11 @@ impl Profile {
     /// Unknown keys are an error, not a silent ignore: a setting kiln does
     /// not model could change compiler output, and an unmodelled change to
     /// output is exactly what a cache key must never miss.
-    pub fn apply_toml(&mut self, name: &str, table: &BTreeMap<String, toml::Value>) -> crate::Result<()> {
+    pub fn apply_toml(
+        &mut self,
+        name: &str,
+        table: &BTreeMap<String, toml::Value>,
+    ) -> crate::Result<()> {
         for (key, value) in table {
             match key.as_str() {
                 "opt-level" => self.opt_level = parse_level(name, key, value)?,
@@ -138,7 +149,7 @@ impl Profile {
                             return Err(crate::Error::parse(
                                 format!("profile {name}.{key}"),
                                 format!("unknown panic strategy `{other}`"),
-                            ))
+                            ));
                         }
                     };
                 }
@@ -152,16 +163,24 @@ impl Profile {
                         other => {
                             return Err(crate::Error::parse(
                                 format!("profile {name}.{key}"),
-                                format!("expected true, false, \"thin\", \"fat\" or \"off\", got {other:?}"),
-                            ))
+                                format!(
+                                    "expected true, false, \"thin\", \"fat\" or \"off\", got {other:?}"
+                                ),
+                            ));
                         }
                     };
                 }
                 "codegen-units" => {
                     self.codegen_units = Some(
-                        value.as_integer().and_then(|i| u32::try_from(i).ok()).ok_or_else(|| {
-                            crate::Error::parse(format!("profile {name}.{key}"), "expected a positive integer")
-                        })?,
+                        value
+                            .as_integer()
+                            .and_then(|i| u32::try_from(i).ok())
+                            .ok_or_else(|| {
+                                crate::Error::parse(
+                                    format!("profile {name}.{key}"),
+                                    "expected a positive integer",
+                                )
+                            })?,
                     );
                 }
                 "rpath" => self.rpath = parse_bool(name, key, value)?,
@@ -173,7 +192,7 @@ impl Profile {
                 other => {
                     return Err(crate::Error::unsupported(format!(
                         "profile {name}.{other}: kiln does not model this setting yet; refusing rather than silently changing compiler output"
-                    )))
+                    )));
                 }
             }
         }
@@ -194,7 +213,9 @@ fn parse_level(name: &str, key: &str, value: &toml::Value) -> crate::Result<u8> 
         .as_integer()
         .and_then(|i| u8::try_from(i).ok())
         .filter(|l| *l <= 3)
-        .ok_or_else(|| crate::Error::parse(format!("profile {name}.{key}"), "expected 0, 1, 2 or 3"))
+        .ok_or_else(|| {
+            crate::Error::parse(format!("profile {name}.{key}"), "expected 0, 1, 2 or 3")
+        })
 }
 
 fn parse_debug(name: &str, key: &str, value: &toml::Value) -> crate::Result<u8> {
@@ -211,11 +232,16 @@ fn parse_debug(name: &str, key: &str, value: &toml::Value) -> crate::Result<u8> 
 }
 
 fn parse_bool(name: &str, key: &str, value: &toml::Value) -> crate::Result<bool> {
-    value.as_bool().ok_or_else(|| crate::Error::parse(format!("profile {name}.{key}"), "expected true or false"))
+    value.as_bool().ok_or_else(|| {
+        crate::Error::parse(format!("profile {name}.{key}"), "expected true or false")
+    })
 }
 
 fn expect_string(name: &str, key: &str, value: &toml::Value) -> crate::Result<String> {
-    value.as_str().map(str::to_owned).ok_or_else(|| crate::Error::parse(format!("profile {name}.{key}"), "expected a string"))
+    value
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| crate::Error::parse(format!("profile {name}.{key}"), "expected a string"))
 }
 
 #[cfg(test)]
@@ -223,7 +249,10 @@ mod tests {
     use super::*;
 
     fn table(pairs: &[(&str, toml::Value)]) -> BTreeMap<String, toml::Value> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]

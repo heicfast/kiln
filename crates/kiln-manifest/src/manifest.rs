@@ -93,19 +93,26 @@ impl Manifest {
 
     /// Parse manifest text for the package rooted at `root`.
     pub fn from_str(root: &Path, text: &str) -> Result<Self> {
-        let table: toml::Table =
-            toml::from_str(text).map_err(|e| Error::parse(format!("{}/Cargo.toml", root.display()), e))?;
+        let table: toml::Table = toml::from_str(text)
+            .map_err(|e| Error::parse(format!("{}/Cargo.toml", root.display()), e))?;
         let pkg_table = table
             .get("package")
             .and_then(|v| v.as_table())
-            .ok_or_else(|| Error::parse("Cargo.toml", "no [package] section (is this the workspace root?)"))?;
+            .ok_or_else(|| {
+                Error::parse(
+                    "Cargo.toml",
+                    "no [package] section (is this the workspace root?)",
+                )
+            })?;
 
         let name = required_str(pkg_table, "name")?;
         // `version = { workspace = true }` is a placeholder the workspace pass
         // fills in; parsing accepts it and marks the manifest as inheriting.
         let mut version_inherited = false;
         let version = match pkg_table.get("version") {
-            Some(toml::Value::Table(t)) if t.get("workspace").and_then(|v| v.as_bool()) == Some(true) => {
+            Some(toml::Value::Table(t))
+                if t.get("workspace").and_then(|v| v.as_bool()) == Some(true) =>
+            {
                 version_inherited = true;
                 Version::new(0, 0, 0)
             }
@@ -114,12 +121,14 @@ impl Manifest {
                 return Err(Error::parse(
                     "Cargo.toml",
                     "package.version is required (or `workspace = true`)",
-                ))
+                ));
             }
         };
         let mut edition_inherited = false;
         let edition = match pkg_table.get("edition") {
-            Some(toml::Value::Table(t)) if t.get("workspace").and_then(|v| v.as_bool()) == Some(true) => {
+            Some(toml::Value::Table(t))
+                if t.get("workspace").and_then(|v| v.as_bool()) == Some(true) =>
+            {
                 edition_inherited = true;
                 crate::Edition::E2015
             }
@@ -142,7 +151,10 @@ impl Manifest {
                 }
             }
         };
-        let links = pkg_table.get("links").and_then(|v| v.as_str()).map(str::to_owned);
+        let links = pkg_table
+            .get("links")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
         let rust_version = pkg_table
             .get("rust-version")
             .map(|v| as_version("package.rust-version", v))
@@ -156,7 +168,11 @@ impl Manifest {
             for (fname, list) in feat {
                 let list = list
                     .as_array()
-                    .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect::<Vec<_>>())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(str::to_owned))
+                            .collect::<Vec<_>>()
+                    })
                     .ok_or_else(|| {
                         Error::parse(format!("features.{fname}"), "expected an array of strings")
                     })?;
@@ -200,7 +216,9 @@ impl Manifest {
         let facts = TargetFacts::from_triple(&kiln_core::ids::TargetTriple::host().0);
         if let Some(targets) = table.get("target").and_then(|v| v.as_table()) {
             for (spec, tables) in targets {
-                let applies = if let Some(cfg) = spec.strip_prefix("cfg(").and_then(|s| s.strip_suffix(')')) {
+                let applies = if let Some(cfg) =
+                    spec.strip_prefix("cfg(").and_then(|s| s.strip_suffix(')'))
+                {
                     crate::cfg::parse_cfg(&format!("cfg({cfg})"))?.eval(&facts)?
                 } else {
                     spec == &facts.os || spec.contains(&facts.arch)
@@ -211,7 +229,9 @@ impl Manifest {
                     })?;
                     for (key, value) in tables {
                         match key.as_str() {
-                            "dependencies" => m.read_dep_value_table(spec, value, DepKind::Normal)?,
+                            "dependencies" => {
+                                m.read_dep_value_table(spec, value, DepKind::Normal)?
+                            }
                             "dev-dependencies" | "dev_dependencies" => {
                                 m.read_dep_value_table(spec, value, DepKind::Dev)?
                             }
@@ -221,7 +241,7 @@ impl Manifest {
                             other => {
                                 return Err(Error::unsupported(format!(
                                     "target.{spec}.{other}: kiln does not model target-specific `{other}` tables yet"
-                                )))
+                                )));
                             }
                         }
                     }
@@ -248,15 +268,35 @@ impl Manifest {
                 "autoexamples" => m.autoexamples = value.as_bool().unwrap_or(true),
                 "autobenches" => m.autobenches = value.as_bool().unwrap_or(true),
                 // Pure registry/publish metadata: no effect on a build.
-                "description" | "readme" | "license" | "license-file" | "keywords" | "categories"
-                | "homepage" | "documentation" | "repository" | "authors" | "exclude" | "include"
-                | "publish" | "metadata" | "default-run" | "workspace" | "name" | "version"
-                | "edition" | "rust-version" | "resolver" | "build" | "links" | "im-a-teapot"
+                "description"
+                | "readme"
+                | "license"
+                | "license-file"
+                | "keywords"
+                | "categories"
+                | "homepage"
+                | "documentation"
+                | "repository"
+                | "authors"
+                | "exclude"
+                | "include"
+                | "publish"
+                | "metadata"
+                | "default-run"
+                | "workspace"
+                | "name"
+                | "version"
+                | "edition"
+                | "rust-version"
+                | "resolver"
+                | "build"
+                | "links"
+                | "im-a-teapot"
                 | "rust-version-lowercase" => {}
                 other => {
                     return Err(Error::unsupported(format!(
                         "package.{other}: kiln does not model this manifest key yet; refusing rather than guessing its meaning"
-                    )))
+                    )));
                 }
             }
         }
@@ -272,9 +312,10 @@ impl Manifest {
                 // [workspace.dependencies] by the workspace pass; here they
                 // are skipped, not half-parsed.
                 if let toml::Value::Table(t) = value
-                    && t.get("workspace").and_then(|v| v.as_bool()) == Some(true) {
-                        continue;
-                    }
+                    && t.get("workspace").and_then(|v| v.as_bool()) == Some(true)
+                {
+                    continue;
+                }
                 let dep = Dependency::parse(name, value, kind, &self.root)?;
                 self.insert_dep(kind, dep)?;
             }
@@ -282,7 +323,12 @@ impl Manifest {
         Ok(())
     }
 
-    fn read_dep_value_table(&mut self, spec: &str, value: &toml::Value, kind: DepKind) -> Result<()> {
+    fn read_dep_value_table(
+        &mut self,
+        spec: &str,
+        value: &toml::Value,
+        kind: DepKind,
+    ) -> Result<()> {
         let deps = value.as_table().ok_or_else(|| {
             Error::parse(format!("target.{spec}"), "expected a table of dependencies")
         })?;
@@ -314,7 +360,9 @@ impl Manifest {
 
     fn read_lib(&mut self, table: &toml::Table) -> Result<()> {
         let lib = match table.get("lib") {
-            Some(v) => v.as_table().ok_or_else(|| Error::parse("[lib]", "expected a table"))?,
+            Some(v) => v
+                .as_table()
+                .ok_or_else(|| Error::parse("[lib]", "expected a table"))?,
             None => return Ok(()),
         };
         let name = lib
@@ -331,12 +379,14 @@ impl Manifest {
             .get("crate-type")
             .or_else(|| lib.get("crate_type"))
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_owned))
+                    .collect()
+            })
             .unwrap_or_default();
         let proc_macro_flag = lib.get("proc-macro").and_then(|v| v.as_bool()) == Some(true);
-        self.lib_kind = if proc_macro_flag
-            || crate_types.iter().any(|c| c == "proc-macro")
-        {
+        self.lib_kind = if proc_macro_flag || crate_types.iter().any(|c| c == "proc-macro") {
             LibKind::ProcMacro
         } else if crate_types.is_empty() || crate_types.iter().any(|c| c == "rlib") {
             LibKind::Rlib
@@ -346,8 +396,24 @@ impl Manifest {
             )));
         };
         for (key, _) in lib {
-            if !matches!(key.as_str(), "name" | "path" | "crate-type" | "crate_type" | "test" | "doctest" | "doc" | "bench" | "plugin" | "harness" | "required-features" | "proc-macro") {
-                return Err(Error::unsupported(format!("[lib] {key}: kiln does not model this key yet")));
+            if !matches!(
+                key.as_str(),
+                "name"
+                    | "path"
+                    | "crate-type"
+                    | "crate_type"
+                    | "test"
+                    | "doctest"
+                    | "doc"
+                    | "bench"
+                    | "plugin"
+                    | "harness"
+                    | "required-features"
+                    | "proc-macro"
+            ) {
+                return Err(Error::unsupported(format!(
+                    "[lib] {key}: kiln does not model this key yet"
+                )));
             }
         }
         self.lib = Some(PackageTarget {
@@ -364,25 +430,46 @@ impl Manifest {
     }
 
     fn read_target_lists(&mut self, table: &toml::Table) -> Result<()> {
-        for (key, dest) in [
-            ("bin", 0usize),
-            ("test", 1),
-            ("bench", 2),
-            ("example", 3),
-        ] {
-            let Some(value) = table.get(key) else { continue };
-            let array = value.as_array().ok_or_else(|| {
-                Error::parse(format!("[[{key}]]"), "expected an array of tables")
-            })?;
+        for (key, dest) in [("bin", 0usize), ("test", 1), ("bench", 2), ("example", 3)] {
+            let Some(value) = table.get(key) else {
+                continue;
+            };
+            let array = value
+                .as_array()
+                .ok_or_else(|| Error::parse(format!("[[{key}]]"), "expected an array of tables"))?;
             for entry in array {
                 let entry = entry.as_table().ok_or_else(|| {
                     Error::parse(format!("[[{key}]]"), "every entry must be a table")
                 })?;
                 let default_path = match key {
-                    "bin" => format!("src/bin/{}.rs", entry.get("name").and_then(|v| v.as_str()).unwrap_or_default()),
-                    "test" => format!("tests/{}.rs", entry.get("name").and_then(|v| v.as_str()).unwrap_or_default()),
-                    "bench" => format!("benches/{}.rs", entry.get("name").and_then(|v| v.as_str()).unwrap_or_default()),
-                    _ => format!("examples/{}.rs", entry.get("name").and_then(|v| v.as_str()).unwrap_or_default()),
+                    "bin" => format!(
+                        "src/bin/{}.rs",
+                        entry
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                    ),
+                    "test" => format!(
+                        "tests/{}.rs",
+                        entry
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                    ),
+                    "bench" => format!(
+                        "benches/{}.rs",
+                        entry
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                    ),
+                    _ => format!(
+                        "examples/{}.rs",
+                        entry
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                    ),
                 };
                 let name = entry
                     .get("name")
@@ -397,10 +484,26 @@ impl Manifest {
                 let required_features = entry
                     .get("required-features")
                     .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(str::to_owned))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 for (k, _) in entry {
-                    if !matches!(k.as_str(), "name" | "path" | "required-features" | "test" | "doc" | "bench" | "harness" | "doctest" | "edition" | "plugin") {
+                    if !matches!(
+                        k.as_str(),
+                        "name"
+                            | "path"
+                            | "required-features"
+                            | "test"
+                            | "doc"
+                            | "bench"
+                            | "harness"
+                            | "doctest"
+                            | "edition"
+                            | "plugin"
+                    ) {
                         return Err(Error::unsupported(format!(
                             "[[{key}]] {k}: kiln does not model this key yet"
                         )));
@@ -441,9 +544,7 @@ impl Manifest {
             });
         }
         let main_rs = self.root.join("src/main.rs");
-        if main_rs.is_file()
-            && self.bins.iter().all(|b| b.path != "src/main.rs")
-        {
+        if main_rs.is_file() && self.bins.iter().all(|b| b.path != "src/main.rs") {
             self.bins.insert(
                 0,
                 PackageTarget {
@@ -461,7 +562,11 @@ impl Manifest {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.extension().and_then(|e| e.to_str()) == Some("rs") && path.is_file() {
-                        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_owned();
+                        let stem = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or_default()
+                            .to_owned();
                         let rel = path
                             .strip_prefix(&self.root)
                             .unwrap_or(&path)
@@ -493,21 +598,30 @@ impl Manifest {
         if self.autotests {
             for t in scan("tests") {
                 if !self.tests.iter().any(|x| x.path == t.path) {
-                    self.tests.push(PackageTarget { kind: kiln_core::unit::TargetKind::Test, ..t });
+                    self.tests.push(PackageTarget {
+                        kind: kiln_core::unit::TargetKind::Test,
+                        ..t
+                    });
                 }
             }
         }
         if self.autobenches {
             for t in scan("benches") {
                 if !self.benches.iter().any(|x| x.path == t.path) {
-                    self.benches.push(PackageTarget { kind: kiln_core::unit::TargetKind::Bench, ..t });
+                    self.benches.push(PackageTarget {
+                        kind: kiln_core::unit::TargetKind::Bench,
+                        ..t
+                    });
                 }
             }
         }
         if self.autoexamples {
             for t in scan("examples") {
                 if !self.examples.iter().any(|x| x.path == t.path) {
-                    self.examples.push(PackageTarget { kind: kiln_core::unit::TargetKind::Example, ..t });
+                    self.examples.push(PackageTarget {
+                        kind: kiln_core::unit::TargetKind::Example,
+                        ..t
+                    });
                 }
             }
         }
@@ -515,10 +629,12 @@ impl Manifest {
 }
 
 fn required_str<'a>(table: &'a toml::Table, key: &str) -> Result<&'a str> {
-    table
-        .get(key)
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| Error::parse("Cargo.toml", format!("{key} is required and must be a string")))
+    table.get(key).and_then(|v| v.as_str()).ok_or_else(|| {
+        Error::parse(
+            "Cargo.toml",
+            format!("{key} is required and must be a string"),
+        )
+    })
 }
 
 fn required_str_value(key: &str, v: &toml::Value) -> Result<String> {
@@ -641,7 +757,10 @@ proc-macro = true
         )
         .unwrap();
         assert_eq!(m.lib_kind, LibKind::ProcMacro);
-        assert_eq!(m.lib.as_ref().unwrap().kind, kiln_core::unit::TargetKind::ProcMacro);
+        assert_eq!(
+            m.lib.as_ref().unwrap().kind,
+            kiln_core::unit::TargetKind::ProcMacro
+        );
     }
 
     #[test]
@@ -662,7 +781,10 @@ openssl = "0.10"
         )
         .unwrap();
         let is_linux = std::env::consts::OS == "linux" && std::env::consts::ARCH == "x86_64";
-        assert_eq!(m.deps.contains_key("libc"), std::env::consts::OS != "windows");
+        assert_eq!(
+            m.deps.contains_key("libc"),
+            std::env::consts::OS != "windows"
+        );
         assert_eq!(m.deps.contains_key("openssl"), is_linux);
     }
 
