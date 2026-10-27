@@ -94,7 +94,7 @@ pub fn resolve_features(
                 for reference in &manifest.features[&feature] {
                     let (dep, feat) = split_feature_ref(reference);
                     match dep {
-                        Some(dep) if dep == "?" => {
+                        Some("?") => {
                             // `?` syntax: only when the dep is already on.
                         }
                         Some(dep) => {
@@ -153,16 +153,10 @@ fn dependency_by_crate_name<'a>(pkg: &'a crate::resolver::ResolvedPackage, crate
         .map(|d| d.name.as_str())
 }
 
-fn dependency_import_name(pkg: &crate::resolver::ResolvedPackage, crate_name: &str) -> String {
-    dependency_by_crate_name(pkg, crate_name)
-        .unwrap_or(crate_name)
-        .to_owned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiln_core::ids::{PackageId, SourceId};
+    use kiln_core::ids::PackageId;
     use kiln_manifest::dependency::{DepKind, Dependency};
     use kiln_manifest::Manifest;
 

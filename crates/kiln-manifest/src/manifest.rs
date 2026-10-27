@@ -271,11 +271,10 @@ impl Manifest {
                 // `workspace = true` rows are resolved against
                 // [workspace.dependencies] by the workspace pass; here they
                 // are skipped, not half-parsed.
-                if let toml::Value::Table(t) = value {
-                    if t.get("workspace").and_then(|v| v.as_bool()) == Some(true) {
+                if let toml::Value::Table(t) = value
+                    && t.get("workspace").and_then(|v| v.as_bool()) == Some(true) {
                         continue;
                     }
-                }
                 let dep = Dependency::parse(name, value, kind, &self.root)?;
                 self.insert_dep(kind, dep)?;
             }

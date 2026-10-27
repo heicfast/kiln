@@ -69,8 +69,8 @@ impl Dependency {
         match table_value {
             toml::Value::String(req) => {
                 dep.req = parse_req(dep_name, req)?;
-                if req.starts_with('=') {
-                    dep.exact = Some(req[1..].trim().parse().map_err(|e| {
+                if let Some(exact) = req.strip_prefix('=') {
+                    dep.exact = Some(exact.trim().parse().map_err(|e| {
                         kiln_core::Error::parse(format!("dependency {dep_name}"), e)
                     })?);
                 }
@@ -81,8 +81,8 @@ impl Dependency {
                         "version" => {
                             let req = string_of(dep_name, "version", value)?;
                             dep.req = parse_req(dep_name, &req)?;
-                            if req.starts_with('=') {
-                                dep.exact = Some(req[1..].trim().parse().map_err(|e| {
+                            if let Some(exact) = req.strip_prefix('=') {
+                                dep.exact = Some(exact.trim().parse().map_err(|e| {
                                     kiln_core::Error::parse(format!("dependency {dep_name}"), e)
                                 })?);
                             }

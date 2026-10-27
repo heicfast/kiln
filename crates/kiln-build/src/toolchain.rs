@@ -81,11 +81,10 @@ impl Toolchain {
 }
 
 fn find_rustc() -> Result<PathBuf> {
-    if let Ok(rustc) = std::env::var("RUSTC") {
-        if !rustc.is_empty() {
+    if let Ok(rustc) = std::env::var("RUSTC")
+        && !rustc.is_empty() {
             return Ok(PathBuf::from(rustc));
         }
-    }
     if let Some(home) = std::env::var_os("HOME") {
         let via_rustup = PathBuf::from(home).join(".cargo/bin/rustc");
         if via_rustup.is_file() {

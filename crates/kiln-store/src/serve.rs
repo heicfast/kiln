@@ -66,11 +66,10 @@ async fn get_object(
     Path((_shard, key)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    if let Some(token) = &state.read_token {
-        if bearer(&headers) != Some(token.as_str()) {
+    if let Some(token) = &state.read_token
+        && bearer(&headers) != Some(token.as_str()) {
             return (StatusCode::UNAUTHORIZED, Vec::new());
         }
-    }
     let key = key.trim_end_matches(".zst");
     // The wire bytes are the object file itself: clients verify the embedded
     // integrity hash on read, so a proxy that changes a byte is caught.
@@ -86,11 +85,10 @@ async fn put_object(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    if let Some(token) = &state.write_token {
-        if bearer(&headers) != Some(token.as_str()) {
+    if let Some(token) = &state.write_token
+        && bearer(&headers) != Some(token.as_str()) {
             return StatusCode::UNAUTHORIZED;
         }
-    }
     if body.is_empty() {
         return StatusCode::BAD_REQUEST;
     }
@@ -112,21 +110,19 @@ async fn has_objects(
     headers: HeaderMap,
     Json(keys): Json<Vec<String>>,
 ) -> (StatusCode, Json<Vec<String>>) {
-    if let Some(token) = &state.read_token {
-        if bearer(&headers) != Some(token.as_str()) {
+    if let Some(token) = &state.read_token
+        && bearer(&headers) != Some(token.as_str()) {
             return (StatusCode::UNAUTHORIZED, Json(Vec::new()));
         }
-    }
     let present = keys.into_iter().filter(|k| state.store.has(k)).collect();
     (StatusCode::OK, Json(present))
 }
 
 async fn list_objects(State(state): State<ServerState>, headers: HeaderMap) -> (StatusCode, Json<Vec<String>>) {
-    if let Some(token) = &state.read_token {
-        if bearer(&headers) != Some(token.as_str()) {
+    if let Some(token) = &state.read_token
+        && bearer(&headers) != Some(token.as_str()) {
             return (StatusCode::UNAUTHORIZED, Json(Vec::new()));
         }
-    }
     match state.store.list_keys() {
         Ok(keys) => (StatusCode::OK, Json(keys)),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(Vec::new())),

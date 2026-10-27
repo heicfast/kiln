@@ -82,6 +82,40 @@ pub enum Error {
     LockHeld(String),
 }
 
+impl Clone for Error {
+    fn clone(&self) -> Self {
+        match self {
+            Error::Parse { context, source } => Error::Parse {
+                context: context.clone(),
+                source: source.to_string().into(),
+            },
+            Error::Missing { path, message } => {
+                Error::Missing { path: path.clone(), message: message.clone() }
+            }
+            Error::Io { op, path, source } => Error::Io {
+                op,
+                path: path.clone(),
+                source: std::io::Error::other(source.to_string()),
+            },
+            Error::Resolve(m) => Error::Resolve(m.clone()),
+            Error::Network { context, source } => Error::Network {
+                context: context.clone(),
+                source: source.to_string().into(),
+            },
+            Error::CommandFailed { command, status } => Error::CommandFailed {
+                command: command.clone(),
+                status: status.clone(),
+            },
+            Error::BuildScript { package, message } => {
+                Error::BuildScript { package: package.clone(), message: message.clone() }
+            }
+            Error::Unsupported(m) => Error::Unsupported(m.clone()),
+            Error::Bug(m) => Error::Bug(m.clone()),
+            Error::LockHeld(m) => Error::LockHeld(m.clone()),
+        }
+    }
+}
+
 impl Error {
     /// Build a `Parse` error.
     pub fn parse(context: impl Into<String>, source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {

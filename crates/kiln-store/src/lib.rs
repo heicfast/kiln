@@ -354,10 +354,11 @@ mod tests {
 
     fn temp_store() -> (tempdir::TempDirGuard, Store) {
         let guard = tempdir::TempDirGuard::new();
-        let dir = guard.path.clone();
-        let mut cfg = KilnConfig::default();
-        cfg.cache_dir = dir;
-        cfg.remote = None;
+        let cfg = KilnConfig {
+            cache_dir: guard.path.clone(),
+            remote: None,
+            ..KilnConfig::default()
+        };
         (guard, Store::open(&cfg).unwrap())
     }
 
@@ -452,9 +453,11 @@ mod tests {
     #[test]
     fn off_mode_stores_nothing() {
         let guard = tempdir::TempDirGuard::new();
-        let mut cfg = KilnConfig::default();
-        cfg.cache_dir = guard.path.clone();
-        cfg.cache_mode = CacheMode::Off;
+        let cfg = KilnConfig {
+            cache_dir: guard.path.clone(),
+            cache_mode: CacheMode::Off,
+            ..KilnConfig::default()
+        };
         let store = Store::open(&cfg).unwrap();
         store.put(&"c".repeat(64), &sample_entry()).unwrap();
         assert!(!store.has(&"c".repeat(64)));

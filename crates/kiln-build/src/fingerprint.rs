@@ -185,7 +185,7 @@ pub fn emit_for(mode: CompileMode, kind: kiln_core::unit::TargetKind) -> &'stati
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiln_core::ids::{PackageId, SourceId};
+    use kiln_core::ids::PackageId;
     use kiln_core::unit::{TargetKind, Unit};
     use semver::Version;
     use std::collections::BTreeSet;

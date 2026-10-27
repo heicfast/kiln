@@ -185,6 +185,7 @@ pub const KEY_FORMAT: u32 = 1;
 mod tests {
     use super::*;
     use crate::ids::SourceId;
+    use semver::Version;
 
     fn unit(name: &str, kind: TargetKind) -> Unit {
         Unit {

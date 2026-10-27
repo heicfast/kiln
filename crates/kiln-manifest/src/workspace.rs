@@ -105,12 +105,10 @@ impl Workspace {
 
         let root_pkg = table.get("package").and_then(|v| v.as_table());
         // The root manifest may itself be a member (a package + workspace).
-        let mut member_dirs = member_dirs;
-        if root_pkg.is_some() {
-            if !member_dirs.contains(&root.to_path_buf()) {
+        if root_pkg.is_some()
+            && !member_dirs.contains(&root.to_path_buf()) {
                 member_dirs.push(root.to_path_buf());
             }
-        }
 
         // Parse every member, resolving inheritance against this workspace.
         let mut members = Vec::new();

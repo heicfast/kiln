@@ -184,11 +184,10 @@ impl KilnConfig {
                 _ => CacheMode::Off,
             };
         }
-        if let Ok(v) = std::env::var("KILN_JOBS") {
-            if let Ok(n) = v.parse::<usize>() {
+        if let Ok(v) = std::env::var("KILN_JOBS")
+            && let Ok(n) = v.parse::<usize>() {
                 self.jobs = Some(n);
             }
-        }
         if let Ok(v) = std::env::var("KILN_SANDBOX") {
             self.sandbox = if v == "off" { SandboxMode::Off } else { SandboxMode::On };
         }
@@ -214,7 +213,7 @@ pub fn default_cache_dir() -> PathBuf {
         .or_else(|| {
             std::env::var("HOME").ok().filter(|s| !s.is_empty()).map(|h| PathBuf::from(h).join(".cache"))
         })
-        .unwrap_or_else(|| std::env::temp_dir());
+        .unwrap_or_else(std::env::temp_dir);
     base.join("kiln").join("store")
 }
 

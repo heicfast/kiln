@@ -4,11 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use kiln_core::ids::PackageId;
 use kiln_core::unit::{CompileMode, TargetKind, Unit};
 use kiln_core::graph::UnitGraph;
 use kiln_core::Result;
-use kiln_manifest::targets::{discover_targets, TargetSpec};
+use kiln_manifest::targets::discover_targets;
 use kiln_manifest::Workspace;
 use kiln_resolve::features::{resolve_features, FeatureSelections, FeatureSet};
 use kiln_resolve::resolver::{ResolveRequest, ResolvedWorkspace};
@@ -167,14 +166,13 @@ pub fn plan_units(request: &PlanRequest) -> Result<Plan> {
             }
         }
         // Test harnesses of a package include the package's own lib.
-        if planned.unit.kind == TargetKind::TestHarness {
-            if let Some(lib) = &pkg.manifest.lib {
+        if planned.unit.kind == TargetKind::TestHarness
+            && let Some(lib) = &pkg.manifest.lib {
                 let key = (planned.unit.pkg.name.clone(), lib.name.clone(), lib.kind, false);
                 if let Some(&lib_idx) = index.get(&key) {
                     graph.depend_on(i, lib_idx)?;
                 }
             }
-        }
     }
 
     // 5. The requested ends: the selection's bins (build/run) or all its units.
@@ -235,6 +233,7 @@ pub fn resolve_request_for(mode: CompileMode, target: &str) -> ResolveRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kiln_core::ids::PackageId;
     use kiln_manifest::Workspace as Ws;
     use std::path::PathBuf;
 

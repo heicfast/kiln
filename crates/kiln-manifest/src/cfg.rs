@@ -191,7 +191,7 @@ fn tokenize(src: &str) -> kiln_core::Result<Vec<Token>> {
                 chars.next();
                 let mut s = String::new();
                 let mut closed = false;
-                while let Some(c) = chars.next() {
+                for c in chars.by_ref() {
                     if c == '"' {
                         closed = true;
                         break;

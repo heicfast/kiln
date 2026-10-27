@@ -125,11 +125,6 @@ pub fn discover_targets(manifest: &Manifest, include_tests: bool) -> Result<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::Manifest as M;
-
-    fn manifest(text: &str) -> M {
-        M::from_str(std::path::Path::new("/tmp"), text).unwrap()
-    }
 
     #[test]
     fn targets_cover_lib_bins_scripts_and_tests() {
@@ -143,7 +138,7 @@ mod tests {
         std::fs::create_dir_all(root.join("tests")).unwrap();
         std::fs::write(root.join("tests/it.rs"), "").unwrap();
 
-        let m = M::parse(&root).unwrap();
+        let m = Manifest::parse(&root).unwrap();
         let all = discover_targets(&m, true).unwrap();
         let kinds: Vec<TargetKind> = all.iter().map(|t| t.kind).collect();
         assert!(kinds.contains(&TargetKind::Lib));

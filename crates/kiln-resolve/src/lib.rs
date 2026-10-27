@@ -27,6 +27,6 @@ pub fn registry_cache_root() -> PathBuf {
         .or_else(|| {
             std::env::var("HOME").ok().filter(|s| !s.is_empty()).map(|h| PathBuf::from(h).join(".cache"))
         })
-        .unwrap_or_else(|| std::env::temp_dir());
+        .unwrap_or_else(std::env::temp_dir);
     base.join("kiln").join("registry")
 }

@@ -106,11 +106,10 @@ impl IndexCache {
     /// Every published version of `name`, from cache or network.
     pub async fn entries(&self, name: &str) -> Result<Vec<IndexEntry>> {
         let cache_file = self.cache_dir.join(format!("{name}.json"));
-        if let Ok(text) = std::fs::read_to_string(&cache_file) {
-            if let Some(entries) = parse_entries(&text) {
+        if let Ok(text) = std::fs::read_to_string(&cache_file)
+            && let Some(entries) = parse_entries(&text) {
                 return Ok(entries);
             }
-        }
         if self.offline || self.frozen {
             return Err(Error::Resolve(format!(
                 "crate `{name}` is not in the local registry cache and the network is off (--offline/--frozen)"
@@ -127,8 +126,7 @@ impl IndexCache {
         if !response.status().is_success() {
             return Err(Error::Network {
                 context: format!("fetching the index of `{name}`"),
-                source: Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                source: Box::new(std::io::Error::other(
                     format!("registry answered {}", response.status()),
                 )),
             });

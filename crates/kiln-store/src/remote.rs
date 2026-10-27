@@ -207,12 +207,12 @@ mod tests {
 
         let key = "9".repeat(64);
         assert!(remote.get(&key).await.unwrap().is_none());
-        assert!(remote.has_many(&[key.clone()]).await.unwrap().is_empty());
+        assert!(remote.has_many(std::slice::from_ref(&key)).await.unwrap().is_empty());
 
         let payload = b"payload-bytes".to_vec();
         remote.put(&key, &payload).await.unwrap();
         assert_eq!(remote.get(&key).await.unwrap().unwrap(), payload);
-        assert_eq!(remote.has_many(&[key.clone()]).await.unwrap(), vec![key.clone()]);
+        assert_eq!(remote.has_many(std::slice::from_ref(&key)).await.unwrap(), vec![key.clone()]);
         assert_eq!(remote.list().await.unwrap(), vec![key]);
         let _ = std::fs::remove_dir_all(&dir);
     }

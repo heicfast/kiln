@@ -67,11 +67,10 @@ pub async fn resolve(
     let lock = Lockfile::read(&lock_path)?;
 
     // 1. Try the lockfile: it wins when every constraint is satisfied.
-    if let Some(lock) = &lock {
-        if let Ok(resolved) = resolve_locked(workspace, request, lock, index, sources).await {
+    if let Some(lock) = &lock
+        && let Ok(resolved) = resolve_locked(workspace, request, lock, index, sources).await {
             return Ok(resolved);
         }
-    }
 
     // 2. Resolve afresh, highest version first, and write the new lockfile.
     let (packages, checksums) = resolve_fresh(workspace, request, index, sources).await?;
@@ -294,19 +293,18 @@ impl Resolver<'_> {
         dep: &Dependency,
         lock: Option<&Lockfile>,
     ) -> Result<IndexEntry> {
-        if let Some(lock) = lock {
-            if let Some(locked) = lock.find(name) {
-                if dep.req.matches(&locked.version) {
+        if let Some(lock) = lock
+            && let Some(locked) = lock.find(name)
+                && dep.req.matches(&locked.version) {
                     let entries = self.index.entries(name).await?;
                     if let Some(entry) = entries.iter().find(|e| e.vers == locked.version) {
-                        if let Some(exact) = &dep.exact {
-                            if exact != &locked.version {
+                        if let Some(exact) = &dep.exact
+                            && exact != &locked.version {
                                 return Err(Error::Resolve(format!(
                                     "`{name}` is locked at {} but {} requires exactly {exact}",
                                     locked.version, dep.name
                                 )));
                             }
-                        }
                         return Ok(entry.clone());
                     }
                     return Err(Error::Resolve(format!(
@@ -314,8 +312,6 @@ impl Resolver<'_> {
                         locked.version
                     )));
                 }
-            }
-        }
         let entries = self.index.entries(name).await?;
         let mut candidates: Vec<&IndexEntry> = entries
             .iter()
@@ -341,8 +337,8 @@ impl Resolver<'_> {
     fn validate_against_lock(&self, lock: &Lockfile) -> Result<()> {
         for pkg in self.packages.values() {
             for dep in pkg.deps.values() {
-                if let Some(locked) = lock.find(dep.crate_name()) {
-                    if !dep.req.matches(&locked.version) {
+                if let Some(locked) = lock.find(dep.crate_name())
+                    && !dep.req.matches(&locked.version) {
                         return Err(Error::Resolve(format!(
                             "the lockfile pins `{}` to {}, but `{}` requires `{}`; re-resolve (delete Cargo.lock or run kiln fetch)",
                             dep.crate_name(),
@@ -351,7 +347,6 @@ impl Resolver<'_> {
                             dep.req
                         )));
                     }
-                }
             }
         }
         Ok(())
@@ -364,7 +359,7 @@ impl Resolver<'_> {
 mod tests {
     use super::*;
     use kiln_manifest::dependency::DepKind;
-    use std::collections::BTreeSet;
+    
     use std::path::PathBuf;
 
     fn member(name: &str, deps: &[(&str, &str)]) -> Manifest {
