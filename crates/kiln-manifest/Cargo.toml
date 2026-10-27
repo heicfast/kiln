@@ -1,0 +1,23 @@
+[package]
+name = "kiln-manifest"
+description = "Cargo.toml, workspace and Cargo.lock parsing for kiln: manifests, targets, profiles, cfg evaluation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+kiln-core = { workspace = true }
+semver = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true
